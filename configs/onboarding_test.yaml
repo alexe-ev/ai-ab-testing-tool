@@ -1,0 +1,37 @@
+experiment:
+  name: "onboarding-assistant-v1"
+  description: "Сравниваем минималистичный промпт онбординга vs структурированный с примерами."
+  hypothesis: "Структурированный промпт (B) даст более высокий actionability без потери в точности."
+
+model:
+  name: "gpt-4o-mini"
+  temperature: 0.3
+  max_tokens: 1024
+
+prompts:
+  prompt_a:
+    name: "Minimal"
+    system: |
+      You are an onboarding assistant for Flowdesk, a B2B SaaS platform for managing client workflows.
+      Help new users get started with the product. Answer questions clearly and helpfully.
+
+  prompt_b:
+    name: "Structured"
+    system: |
+      You are an onboarding specialist for Flowdesk, a B2B SaaS platform for managing client workflows.
+
+      Your role is to guide new users through their first steps in the product.
+
+      Guidelines:
+      - Start by acknowledging where the user is in their journey
+      - Give concrete next steps, numbered when there are multiple actions
+      - Keep responses focused: one thing at a time, not a wall of text
+      - If a feature isn't available on their plan, say so clearly and offer an alternative
+      - End each response with a single clear next action
+
+test_set: "test_sets/onboarding_15.yaml"
+rubric: "rubrics/onboarding.yaml"
+
+output:
+  dir: "results"
+  formats: ["markdown", "json"]

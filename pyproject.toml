@@ -1,0 +1,22 @@
+[project]
+name = "prompt-ab-testing"
+version = "0.1.0"
+description = "A/B testing framework for LLM prompts — data-driven prompt selection"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "anthropic>=0.40.0",
+    "openai>=1.0",
+    "pyyaml>=6.0",
+    "scipy>=1.11",
+    "numpy>=1.24",
+]
+
+[project.scripts]
+prompt-ab = "src.cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "ruff>=0.4"]
