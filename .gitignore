@@ -1,8 +1,13 @@
 .env
 .venv/
+backend/.venv/
 __pycache__/
-*.egg-info/
+**/*.egg-info/
 results/
 .DS_Store
 CLAUDE.md
 .claude/
+node_modules/
+.next/
+frontend/.env*
+backend/.env

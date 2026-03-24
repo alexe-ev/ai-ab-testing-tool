@@ -1,0 +1,108 @@
+# ─── Evaluation Rubric: Customer Support ─────────────────────────
+# Defines HOW responses are scored by the LLM judge.
+# Each dimension has a 1-5 scale with anchor descriptions.
+#
+# Weights reflect product priorities:
+#   Accuracy is highest because wrong answers in support cause real harm.
+#   Actionability is next because users need to know what to DO.
+#   Empathy matters for retention and satisfaction.
+#   Completeness rounds out the picture.
+
+dimensions:
+  - name: "factual_accuracy"
+    weight: 0.30
+    description: "Is the information in the response factually correct?"
+    levels:
+      - score: 5
+        description: >
+          Fully correct, includes relevant caveats and edge cases.
+          No misleading statements.
+      - score: 4
+        description: >
+          Correct. Minor omissions that don't affect the customer's 
+          ability to resolve their issue.
+      - score: 3
+        description: >
+          Mostly correct, but contains inaccuracies that could cause 
+          confusion (not harm).
+      - score: 2
+        description: >
+          Partially correct. Some statements could mislead the customer
+          into wrong actions.
+      - score: 1
+        description: >
+          Contains factual errors that would lead to failed resolution
+          or harmful actions (e.g., wrong billing info, data loss).
+
+  - name: "empathy_tone"
+    weight: 0.20
+    description: "Does the response acknowledge the customer's situation appropriately?"
+    levels:
+      - score: 5
+        description: >
+          Warm and professional. Acknowledges frustration or situation.
+          Customer feels heard and cared about.
+      - score: 4
+        description: >
+          Professional and polite. Appropriate tone throughout.
+      - score: 3
+        description: >
+          Neutral. Neither warm nor cold. Gets the job done but 
+          feels transactional.
+      - score: 2
+        description: >
+          Feels robotic, dismissive, or slightly condescending.
+          Customer might feel like talking to a wall.
+      - score: 1
+        description: >
+          Rude, condescending, inappropriately casual, or tone-deaf
+          to the severity of the customer's problem.
+
+  - name: "completeness"
+    weight: 0.25
+    description: "Does the response address all parts of the customer's question?"
+    levels:
+      - score: 5
+        description: >
+          Answers all parts of the question AND anticipates likely 
+          follow-up questions or related issues.
+      - score: 4
+        description: >
+          Answers all parts of the question fully.
+      - score: 3
+        description: >
+          Answers the main question but misses sub-questions or 
+          important context.
+      - score: 2
+        description: >
+          Partial answer. Addresses some aspects but leaves key 
+          parts unanswered.
+      - score: 1
+        description: >
+          Does not meaningfully address the customer's question.
+          Off-topic or irrelevant response.
+
+  - name: "actionability"
+    weight: 0.25
+    description: "Can the customer take concrete action based on this response?"
+    levels:
+      - score: 5
+        description: >
+          Clear, numbered/ordered steps. Customer knows exactly what 
+          to do, in what order, and what to expect at each step.
+      - score: 4
+        description: >
+          Good guidance. Customer can act with minimal additional 
+          clarification needed.
+      - score: 3
+        description: >
+          General advice or direction, but lacks specific steps.
+          Customer knows roughly what to do but not exactly how.
+      - score: 2
+        description: >
+          Vague suggestions. Customer is unsure what to do next 
+          or how to proceed.
+      - score: 1
+        description: >
+          No actionable guidance. Customer is left stuck or must 
+          ask another question to make any progress.

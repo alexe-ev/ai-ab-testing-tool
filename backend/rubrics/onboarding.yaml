@@ -1,0 +1,45 @@
+dimensions:
+  - name: "accuracy"
+    weight: 0.35
+    description: "Is the information correct and relevant to an onboarding context?"
+    levels:
+      - score: 5
+        description: "Fully correct. Includes relevant caveats (e.g., plan limitations)."
+      - score: 4
+        description: "Correct. Minor omissions that don't block the user."
+      - score: 3
+        description: "Mostly correct but contains vague or potentially misleading statements."
+      - score: 2
+        description: "Partially correct. Some statements could cause the user to take wrong steps."
+      - score: 1
+        description: "Incorrect or off-topic. Would leave user more confused than before."
+
+  - name: "actionability"
+    weight: 0.40
+    description: "Can the user immediately act on this response?"
+    levels:
+      - score: 5
+        description: "Clear numbered steps. User knows exactly what to click, in what order."
+      - score: 4
+        description: "Good guidance. User can proceed without additional clarification."
+      - score: 3
+        description: "General direction given but lacks specifics. User knows roughly what to do."
+      - score: 2
+        description: "Vague. User is unsure where to start."
+      - score: 1
+        description: "No actionable guidance. User is stuck."
+
+  - name: "focus"
+    weight: 0.25
+    description: "Is the response concise and focused, or does it overwhelm a new user?"
+    levels:
+      - score: 5
+        description: "Tight and focused. One clear message. No unnecessary information."
+      - score: 4
+        description: "Good focus. Minor additions that don't hurt comprehension."
+      - score: 3
+        description: "Somewhat bloated or covers too much at once for a new user."
+      - score: 2
+        description: "Wall of text or multiple unrelated points. Hard to extract what to do."
+      - score: 1
+        description: "Overwhelming. Would cause a new user to disengage or ignore the response."
