@@ -1,13 +1,23 @@
-"""Tests for html_report._build_cases_json(): context field inclusion."""
+"""Tests for html_report: _build_cases_json(), model names, performance section, warning."""
 
 import json
+import os
+import tempfile
 
-from src.html_report import _build_cases_json
+from src.html_report import _build_cases_json, generate_html_report
 
 
-def _make_run_data(results):
+def _make_run_data(results, model_a="gpt-4o-mini", model_b="gpt-4o-mini"):
     return {
+        "run_id": "test_run",
+        "config": {
+            "experiment": {"name": "Test"},
+            "model": {"name": model_a},
+            "prompt_names": {"prompt_a": "Minimal", "prompt_b": "Detailed"},
+            "prompt_models": {"prompt_a": model_a, "prompt_b": model_b},
+        },
         "results": results,
+        "summary": {"total_cases": len(results), "total_calls": len(results) * 2, "errors": 0},
     }
 
 
@@ -22,6 +32,58 @@ def _make_analysis(key_a="prompt_a", key_b="prompt_b"):
         "prompt_a": {"key": key_a, "name": "Minimal"},
         "prompt_b": {"key": key_b, "name": "Detailed"},
     }
+
+
+def _make_full_analysis_data(
+    model_a="gpt-4o-mini",
+    model_b="gpt-4o-mini",
+    multi_variable_warning=False,
+    include_operational_metrics=True,
+):
+    op_metrics = None
+    if include_operational_metrics:
+        op_metrics = {
+            "per_prompt": {
+                "prompt_a": {
+                    "name": "Minimal",
+                    "model": model_a,
+                    "n_responses": 2,
+                    "latency": {"avg": 1.0, "p50": 0.9, "p95": 1.5},
+                    "tokens": {"total_input": 200, "total_output": 400, "total": 600, "avg_per_response": 300.0},
+                    "cost_usd": 0.00033,
+                },
+                "prompt_b": {
+                    "name": "Detailed",
+                    "model": model_b,
+                    "n_responses": 2,
+                    "latency": {"avg": 2.0, "p50": 1.9, "p95": 2.8},
+                    "tokens": {"total_input": 200, "total_output": 400, "total": 600, "avg_per_response": 300.0},
+                    "cost_usd": 0.009 if "claude-sonnet" in model_b else 0.00033,
+                },
+            },
+            "multi_variable_warning": multi_variable_warning,
+        }
+
+    analysis = {
+        "prompt_a": {"key": "prompt_a", "name": "Minimal"},
+        "prompt_b": {"key": "prompt_b", "name": "Detailed"},
+        "recommendation": {"winner": "Minimal", "confidence": "high", "signals": {}},
+    }
+    if op_metrics:
+        analysis["operational_metrics"] = op_metrics
+
+    return {
+        "analysis_id": "analysis_test_001",
+        "eval_id": "eval_test_001",
+        "run_id": "test_run",
+        "timestamp": "2026-03-24T10:00:00+00:00",
+        "analysis": analysis,
+    }
+
+
+def _write_json(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f)
 
 
 # ─── context field ────────────────────────────────────────────────
@@ -175,3 +237,189 @@ def test_build_cases_json_scores_none_when_no_eval():
 
     assert cases[0]["scores_a"] is None
     assert cases[0]["scores_b"] is None
+
+
+# ─── Model name in cases JSON ─────────────────────────────────────
+
+
+def test_html_response_viewer_shows_model():
+    """Model name is present per response in the cases JSON."""
+    run_data = _make_run_data(
+        results=[
+            {
+                "test_case_id": "c1",
+                "category": "billing",
+                "input": "Question.",
+                "context": None,
+                "responses": {
+                    "prompt_a": {
+                        "response": "A resp.",
+                        "input_tokens": 5,
+                        "output_tokens": 5,
+                        "latency_seconds": 0.1,
+                        "model": "gpt-4o-mini",
+                    },
+                    "prompt_b": {
+                        "response": "B resp.",
+                        "input_tokens": 5,
+                        "output_tokens": 5,
+                        "latency_seconds": 0.1,
+                        "model": "claude-sonnet-4-20250514",
+                    },
+                },
+            }
+        ],
+        model_a="gpt-4o-mini",
+        model_b="claude-sonnet-4-20250514",
+    )
+
+    result_json = _build_cases_json(run_data, _make_eval_data(), _make_analysis())
+    cases = json.loads(result_json)
+
+    assert cases[0]["responses"]["prompt_a"]["model"] == "gpt-4o-mini"
+    assert cases[0]["responses"]["prompt_b"]["model"] == "claude-sonnet-4-20250514"
+
+
+def test_html_response_viewer_fallback_model_from_config():
+    """When response has no model field, it is populated from prompt_models config."""
+    run_data = _make_run_data(
+        results=[
+            {
+                "test_case_id": "c1",
+                "category": "billing",
+                "input": "Question.",
+                "context": None,
+                "responses": {
+                    "prompt_a": {
+                        "response": "A resp.",
+                        "input_tokens": 5,
+                        "output_tokens": 5,
+                        "latency_seconds": 0.1,
+                        # no "model" key
+                    },
+                    "prompt_b": {
+                        "response": "B resp.",
+                        "input_tokens": 5,
+                        "output_tokens": 5,
+                        "latency_seconds": 0.1,
+                        # no "model" key
+                    },
+                },
+            }
+        ],
+        model_a="gpt-4o",
+        model_b="gpt-4o-mini",
+    )
+
+    result_json = _build_cases_json(run_data, _make_eval_data(), _make_analysis())
+    cases = json.loads(result_json)
+
+    assert cases[0]["responses"]["prompt_a"]["model"] == "gpt-4o"
+    assert cases[0]["responses"]["prompt_b"]["model"] == "gpt-4o-mini"
+
+
+# ─── Full HTML generation tests ───────────────────────────────────
+
+
+def _make_minimal_results():
+    return [
+        {
+            "test_case_id": "c1",
+            "category": "billing",
+            "input": "Question?",
+            "context": None,
+            "responses": {
+                "prompt_a": {"response": "Resp A.", "input_tokens": 10, "output_tokens": 20, "latency_seconds": 1.0, "model": "gpt-4o-mini"},
+                "prompt_b": {"response": "Resp B.", "input_tokens": 10, "output_tokens": 20, "latency_seconds": 2.0, "model": "claude-sonnet-4-20250514"},
+            },
+        }
+    ]
+
+
+def test_html_header_shows_per_prompt_models():
+    """Per-prompt model names appear in the HTML header."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analysis_path = os.path.join(tmpdir, "analysis.json")
+        run_path = os.path.join(tmpdir, "run.json")
+        eval_path = os.path.join(tmpdir, "eval.json")
+
+        _write_json(analysis_path, _make_full_analysis_data(
+            model_a="gpt-4o-mini",
+            model_b="claude-sonnet-4-20250514",
+        ))
+        _write_json(run_path, _make_run_data(
+            _make_minimal_results(),
+            model_a="gpt-4o-mini",
+            model_b="claude-sonnet-4-20250514",
+        ))
+        _write_json(eval_path, _make_eval_data())
+
+        html_path = generate_html_report(analysis_path, run_path, eval_path, tmpdir)
+        content = open(html_path).read()
+
+        # Both model names must appear in header meta
+        assert "gpt-4o-mini" in content
+        assert "claude-sonnet-4-20250514" in content
+
+
+def test_html_has_performance_section():
+    """Performance section with latency/cost is present in HTML."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analysis_path = os.path.join(tmpdir, "analysis.json")
+        run_path = os.path.join(tmpdir, "run.json")
+        eval_path = os.path.join(tmpdir, "eval.json")
+
+        _write_json(analysis_path, _make_full_analysis_data())
+        _write_json(run_path, _make_run_data(_make_minimal_results()))
+        _write_json(eval_path, _make_eval_data())
+
+        html_path = generate_html_report(analysis_path, run_path, eval_path, tmpdir)
+        content = open(html_path).read()
+
+        assert "perf-section" in content
+        assert "Performance" in content
+        assert "Latency" in content
+        assert "Cost" in content
+
+
+def test_html_warning_banner():
+    """Warning div is present when multi_variable_warning is True."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analysis_path = os.path.join(tmpdir, "analysis.json")
+        run_path = os.path.join(tmpdir, "run.json")
+        eval_path = os.path.join(tmpdir, "eval.json")
+
+        _write_json(analysis_path, _make_full_analysis_data(
+            model_a="gpt-4o-mini",
+            model_b="claude-sonnet-4-20250514",
+            multi_variable_warning=True,
+        ))
+        _write_json(run_path, _make_run_data(
+            _make_minimal_results(),
+            model_a="gpt-4o-mini",
+            model_b="claude-sonnet-4-20250514",
+        ))
+        _write_json(eval_path, _make_eval_data())
+
+        html_path = generate_html_report(analysis_path, run_path, eval_path, tmpdir)
+        content = open(html_path).read()
+
+        assert "warning-banner" in content
+        assert "Multi-variable" in content
+
+
+def test_html_no_warning_when_false():
+    """Warning message absent when multi_variable_warning is False."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analysis_path = os.path.join(tmpdir, "analysis.json")
+        run_path = os.path.join(tmpdir, "run.json")
+        eval_path = os.path.join(tmpdir, "eval.json")
+
+        _write_json(analysis_path, _make_full_analysis_data(multi_variable_warning=False))
+        _write_json(run_path, _make_run_data(_make_minimal_results()))
+        _write_json(eval_path, _make_eval_data())
+
+        html_path = generate_html_report(analysis_path, run_path, eval_path, tmpdir)
+        content = open(html_path).read()
+
+        assert "Multi-variable" not in content
