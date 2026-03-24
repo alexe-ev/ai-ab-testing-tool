@@ -242,3 +242,59 @@ export interface SettingItem {
   value: string;
   is_set: boolean;
 }
+
+export interface EvalDimensionScore {
+  score: number | null;
+  reasoning: string;
+}
+
+export interface EvalPairwiseRound {
+  winner: string;
+  reasoning: string;
+}
+
+export interface EvalPairwise {
+  winner: string;
+  consistent: boolean;
+  round1?: EvalPairwiseRound;
+  round2_swapped?: EvalPairwiseRound;
+}
+
+export interface EvalCase {
+  test_case_id: string;
+  category: string;
+  input: string;
+  pointwise?: Record<string, Record<string, EvalDimensionScore>>;
+  pairwise?: EvalPairwise;
+  skipped?: boolean;
+}
+
+export interface RunCaseResponse {
+  response: string;
+  input_tokens: number;
+  output_tokens: number;
+  latency_seconds: number;
+  model: string;
+  stop_reason: string;
+}
+
+export interface RunCase {
+  test_case_id: string;
+  category: string;
+  input: string;
+  context?: string | null;
+  reference?: string | null;
+  responses: Record<string, RunCaseResponse>;
+}
+
+export interface MergedCase {
+  test_case_id: string;
+  category: string;
+  input: string;
+  context?: string | null;
+  reference?: string | null;
+  responses: Record<string, RunCaseResponse>;
+  pointwise?: Record<string, Record<string, EvalDimensionScore>>;
+  pairwise?: EvalPairwise;
+  skipped?: boolean;
+}
