@@ -236,3 +236,9 @@ export interface JobStatus {
   created_at: string;
   updated_at: string;
 }
+
+export interface SettingItem {
+  key: string;
+  value: string;
+  is_set: boolean;
+}

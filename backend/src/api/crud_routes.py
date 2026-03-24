@@ -1,3 +1,4 @@
+import os
 import threading
 from datetime import datetime
 from typing import Any, Optional
@@ -487,3 +488,64 @@ def export_run(run_id: str, format: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Report file not found for format: {format}")
 
     return FileResponse(str(files[0]), media_type=media_type, filename=files[0].name)
+
+
+# ─── Settings router ─────────────────────────────────────────────
+
+ALLOWED_SETTINGS = {"OPENAI_API_KEY", "ANTHROPIC_API_KEY"}
+
+settings_router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+
+def _mask_key(value: str) -> str:
+    if len(value) <= 8:
+        return "****"
+    return value[:4] + "****" + value[-4:]
+
+
+class SettingOut(BaseModel):
+    key: str
+    value: str
+    is_set: bool
+
+
+class SettingsUpdate(BaseModel):
+    key: str
+    value: str
+
+
+@settings_router.get("/", response_model=list[SettingOut])
+def get_settings(db: Session = Depends(get_db)):
+    result = []
+    for key in sorted(ALLOWED_SETTINGS):
+        setting = crud.get_setting(db, key)
+        if setting:
+            result.append(SettingOut(key=key, value=_mask_key(setting.value), is_set=True))
+        else:
+            env_val = os.environ.get(key, "")
+            if env_val:
+                result.append(SettingOut(key=key, value=_mask_key(env_val), is_set=True))
+            else:
+                result.append(SettingOut(key=key, value="", is_set=False))
+    return result
+
+
+@settings_router.put("/", response_model=SettingOut)
+def update_setting(body: SettingsUpdate, db: Session = Depends(get_db)):
+    if body.key not in ALLOWED_SETTINGS:
+        raise HTTPException(status_code=422, detail=f"Unknown setting: {body.key}")
+    if not body.value.strip():
+        raise HTTPException(status_code=422, detail="Value cannot be empty")
+
+    crud.upsert_setting(db, body.key, body.value.strip())
+    os.environ[body.key] = body.value.strip()
+
+    return SettingOut(key=body.key, value=_mask_key(body.value.strip()), is_set=True)
+
+
+@settings_router.delete("/{key}", status_code=204)
+def delete_setting(key: str, db: Session = Depends(get_db)):
+    if key not in ALLOWED_SETTINGS:
+        raise HTTPException(status_code=422, detail=f"Unknown setting: {key}")
+    crud.delete_setting(db, key)
+    os.environ.pop(key, None)

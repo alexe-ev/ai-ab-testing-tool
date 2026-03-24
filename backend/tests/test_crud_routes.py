@@ -707,3 +707,60 @@ def test_export_run_file_missing(client, tmp_path, monkeypatch):
     # No report file created
     resp = client.get(f"/api/runs/{run_id}/export/html")
     assert resp.status_code == 404
+
+
+# ─── Settings ────────────────────────────────────────────────────
+
+def test_get_settings_returns_all_keys(client, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    resp = client.get("/api/settings/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 2
+    keys = {s["key"] for s in data}
+    assert keys == {"OPENAI_API_KEY", "ANTHROPIC_API_KEY"}
+    assert all(not s["is_set"] for s in data)
+
+
+def test_update_setting(client):
+    resp = client.put("/api/settings/", json={"key": "OPENAI_API_KEY", "value": "sk-test-1234567890abcdef"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["key"] == "OPENAI_API_KEY"
+    assert data["is_set"] is True
+    assert "****" in data["value"]
+    assert data["value"].startswith("sk-t")
+    assert data["value"].endswith("cdef")
+
+
+def test_update_setting_unknown_key(client):
+    resp = client.put("/api/settings/", json={"key": "UNKNOWN_KEY", "value": "test"})
+    assert resp.status_code == 422
+
+
+def test_update_setting_empty_value(client):
+    resp = client.put("/api/settings/", json={"key": "OPENAI_API_KEY", "value": "  "})
+    assert resp.status_code == 422
+
+
+def test_settings_roundtrip(client):
+    client.put("/api/settings/", json={"key": "ANTHROPIC_API_KEY", "value": "sk-ant-test-key-12345"})
+    resp = client.get("/api/settings/")
+    data = resp.json()
+    ant = next(s for s in data if s["key"] == "ANTHROPIC_API_KEY")
+    assert ant["is_set"] is True
+
+
+def test_delete_setting(client):
+    client.put("/api/settings/", json={"key": "OPENAI_API_KEY", "value": "sk-test-key"})
+    resp = client.delete("/api/settings/OPENAI_API_KEY")
+    assert resp.status_code == 204
+    data = client.get("/api/settings/").json()
+    oai = next(s for s in data if s["key"] == "OPENAI_API_KEY")
+    assert oai["is_set"] is False
+
+
+def test_delete_setting_unknown_key(client):
+    resp = client.delete("/api/settings/UNKNOWN")
+    assert resp.status_code == 422

@@ -7,6 +7,7 @@ const navItems = [
   { href: "/", label: "Experiments" },
   { href: "/test-sets", label: "Test Sets" },
   { href: "/rubrics", label: "Rubrics" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function Sidebar() {
