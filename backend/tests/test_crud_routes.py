@@ -341,3 +341,204 @@ def test_update_experiment_clears_config(client):
     resp = client.put(f"/api/experiments-db/{exp_id}", json={"name": "Has Config", "config": None})
     assert resp.status_code == 200
     assert resp.json()["config"] is None
+
+
+# ─── Dry-run and run-full endpoints ───────────────────────────────
+
+def _make_experiment_with_config(client):
+    config = {
+        "model": {"name": "gpt-4o-mini", "temperature": 0.3, "max_tokens": 512},
+        "prompts": {
+            "a": {"name": "Prompt A", "system": "You are helpful.", "model": "gpt-4o-mini"},
+            "b": {"name": "Prompt B", "system": "You are concise.", "model": "gpt-4o-mini"},
+        },
+        "judge_model": "claude-sonnet",
+    }
+    resp = client.post("/api/experiments-db/", json={"name": "Run Exp", "config": config})
+    return resp.json()["id"]
+
+
+def _make_test_set(client):
+    resp = client.post(
+        "/api/test-sets/",
+        json={
+            "name": "Run Test Set",
+            "cases": [
+                {"case_identifier": "c1", "category": "billing", "input": "Question 1"},
+                {"case_identifier": "c2", "category": "support", "input": "Question 2"},
+            ],
+        },
+    )
+    return resp.json()["id"]
+
+
+def _make_rubric(client):
+    resp = client.post(
+        "/api/rubrics/",
+        json={
+            "name": "Run Rubric",
+            "dimensions": [
+                {
+                    "name": "accuracy",
+                    "description": "Is it accurate?",
+                    "weight": 1.0,
+                    "levels": [{"score": 5, "description": "perfect"}, {"score": 1, "description": "wrong"}],
+                }
+            ],
+        },
+    )
+    return resp.json()["id"]
+
+
+def test_dry_run_happy_path(client):
+    exp_id = _make_experiment_with_config(client)
+    ts_id = _make_test_set(client)
+    rubric_id = _make_rubric(client)
+
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/dry-run",
+        json={"test_set_id": ts_id, "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["valid"] is True
+    assert data["experiment_name"] == "Run Exp"
+    assert data["test_case_count"] == 2
+    assert set(data["prompt_names"]) == {"a", "b"}
+    assert data["rubric_name"] == "Run Rubric"
+
+
+def test_dry_run_experiment_not_found(client):
+    ts_id = _make_test_set(client)
+    rubric_id = _make_rubric(client)
+    resp = client.post(
+        "/api/experiments-db/nonexistent/dry-run",
+        json={"test_set_id": ts_id, "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 404
+
+
+def test_dry_run_test_set_not_found(client):
+    exp_id = _make_experiment_with_config(client)
+    rubric_id = _make_rubric(client)
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/dry-run",
+        json={"test_set_id": "nonexistent", "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 404
+
+
+def test_dry_run_rubric_not_found(client):
+    exp_id = _make_experiment_with_config(client)
+    ts_id = _make_test_set(client)
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/dry-run",
+        json={"test_set_id": ts_id, "rubric_id": "nonexistent"},
+    )
+    assert resp.status_code == 404
+
+
+def test_dry_run_experiment_no_prompts(client):
+    # Experiment with no config -> no prompts
+    create_resp = client.post("/api/experiments-db/", json={"name": "No Prompts"})
+    exp_id = create_resp.json()["id"]
+    ts_id = _make_test_set(client)
+    rubric_id = _make_rubric(client)
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/dry-run",
+        json={"test_set_id": ts_id, "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 422
+
+
+def test_dry_run_experiment_only_one_prompt(client):
+    config = {
+        "prompts": {
+            "a": {"name": "Only A", "system": "sys", "model": "gpt-4o-mini"},
+        }
+    }
+    create_resp = client.post("/api/experiments-db/", json={"name": "One Prompt", "config": config})
+    exp_id = create_resp.json()["id"]
+    ts_id = _make_test_set(client)
+    rubric_id = _make_rubric(client)
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/dry-run",
+        json={"test_set_id": ts_id, "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 422
+
+
+def test_run_full_returns_job_id(client):
+    exp_id = _make_experiment_with_config(client)
+    ts_id = _make_test_set(client)
+    rubric_id = _make_rubric(client)
+
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/run-full",
+        json={
+            "test_set_id": ts_id,
+            "rubric_id": rubric_id,
+            "judge_model": "claude-sonnet-4-20250514",
+            "mode": "both",
+        },
+    )
+    assert resp.status_code == 202
+    data = resp.json()
+    assert "job_id" in data
+    assert data["status"] == "pending"
+    assert len(data["job_id"]) > 0
+
+
+def test_run_full_experiment_not_found(client):
+    ts_id = _make_test_set(client)
+    rubric_id = _make_rubric(client)
+    resp = client.post(
+        "/api/experiments-db/nonexistent/run-full",
+        json={"test_set_id": ts_id, "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 404
+
+
+def test_run_full_test_set_not_found(client):
+    exp_id = _make_experiment_with_config(client)
+    rubric_id = _make_rubric(client)
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/run-full",
+        json={"test_set_id": "nonexistent", "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 404
+
+
+def test_run_full_rubric_not_found(client):
+    exp_id = _make_experiment_with_config(client)
+    ts_id = _make_test_set(client)
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/run-full",
+        json={"test_set_id": ts_id, "rubric_id": "nonexistent"},
+    )
+    assert resp.status_code == 404
+
+
+def test_run_full_no_prompts_returns_422(client):
+    create_resp = client.post("/api/experiments-db/", json={"name": "No Prompts"})
+    exp_id = create_resp.json()["id"]
+    ts_id = _make_test_set(client)
+    rubric_id = _make_rubric(client)
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/run-full",
+        json={"test_set_id": ts_id, "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 422
+
+
+def test_run_full_empty_test_set_returns_422(client):
+    exp_id = _make_experiment_with_config(client)
+    rubric_id = _make_rubric(client)
+    # Create empty test set
+    empty_ts_resp = client.post("/api/test-sets/", json={"name": "Empty Set", "cases": []})
+    empty_ts_id = empty_ts_resp.json()["id"]
+    resp = client.post(
+        f"/api/experiments-db/{exp_id}/run-full",
+        json={"test_set_id": empty_ts_id, "rubric_id": rubric_id},
+    )
+    assert resp.status_code == 422

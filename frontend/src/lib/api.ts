@@ -1,4 +1,9 @@
-import type { TestSet, TestSetListItem, TestSetFormData, Rubric, RubricListItem, RubricFormData } from "./types";
+import type {
+  TestSet, TestSetListItem, TestSetFormData,
+  Rubric, RubricListItem, RubricFormData,
+  ExperimentListItem,
+  DryRunResult, JobStatus,
+} from "./types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -75,4 +80,41 @@ export function updateRubric(id: string, data: RubricFormData): Promise<Rubric> 
 
 export function deleteRubric(id: string): Promise<void> {
   return apiDelete(`/api/rubrics/${id}`);
+}
+
+export function getExperiments(): Promise<ExperimentListItem[]> {
+  return apiGet<ExperimentListItem[]>("/api/experiments-db/");
+}
+
+export function dryRunExperiment(
+  experimentId: string,
+  testSetId: string,
+  rubricId: string,
+): Promise<DryRunResult> {
+  return apiPost<DryRunResult>(`/api/experiments-db/${experimentId}/dry-run`, {
+    test_set_id: testSetId,
+    rubric_id: rubricId,
+  });
+}
+
+export function runFullPipeline(
+  experimentId: string,
+  testSetId: string,
+  rubricId: string,
+  judgeModel: string,
+  mode: string,
+): Promise<{ job_id: string; status: string }> {
+  return apiPost<{ job_id: string; status: string }>(
+    `/api/experiments-db/${experimentId}/run-full`,
+    {
+      test_set_id: testSetId,
+      rubric_id: rubricId,
+      judge_model: judgeModel,
+      mode,
+    },
+  );
+}
+
+export function getJobStatus(jobId: string): Promise<JobStatus> {
+  return apiGet<JobStatus>(`/api/jobs/${jobId}`);
 }

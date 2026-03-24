@@ -103,3 +103,27 @@ export interface RubricFormData {
   name: string;
   dimensions: RubricDimensionFormData[];
 }
+
+export interface DryRunResult {
+  valid: boolean;
+  experiment_name: string;
+  test_case_count: number;
+  prompt_names: string[];
+  prompt_models: Record<string, string>;
+  rubric_name: string;
+}
+
+export interface JobProgress {
+  step: string;
+  detail: string;
+}
+
+export interface JobStatus {
+  job_id: string;
+  status: "pending" | "running" | "done" | "failed";
+  result: Record<string, string> | null;
+  error: string | null;
+  progress: JobProgress | null;
+  created_at: string;
+  updated_at: string;
+}

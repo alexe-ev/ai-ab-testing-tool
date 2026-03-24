@@ -52,13 +52,12 @@ export default function ExperimentsPage() {
       {!loading && !error && experiments.length > 0 && (
         <div className="flex flex-col gap-2">
           {experiments.map((exp) => (
-            <Link
+            <div
               key={exp.id}
-              href={`/experiments/${exp.id}/edit`}
-              className="border border-[#222] rounded-lg p-4 hover:border-[#444] transition-colors block"
+              className="border border-[#222] rounded-lg p-4 hover:border-[#444] transition-colors"
             >
               <div className="flex items-start justify-between">
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{exp.name}</p>
                   {exp.description && (
                     <p className="text-[#888] text-xs mt-1 line-clamp-2">
@@ -66,11 +65,27 @@ export default function ExperimentsPage() {
                     </p>
                   )}
                 </div>
-                <span className="text-[#555] text-xs ml-4 shrink-0">
-                  {exp.run_count} {exp.run_count === 1 ? "run" : "runs"}
-                </span>
+                <div className="flex items-center gap-3 ml-4 shrink-0">
+                  <span className="text-[#555] text-xs">
+                    {exp.run_count} {exp.run_count === 1 ? "run" : "runs"}
+                  </span>
+                  <Link
+                    href={`/experiments/${exp.id}/run`}
+                    className="text-xs text-[#888] hover:text-[#ededed] border border-[#333] rounded px-2 py-1 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Run
+                  </Link>
+                  <Link
+                    href={`/experiments/${exp.id}/edit`}
+                    className="text-xs text-[#888] hover:text-[#ededed]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Edit
+                  </Link>
+                </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

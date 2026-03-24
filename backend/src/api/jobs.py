@@ -13,6 +13,7 @@ def create_job() -> str:
             "status": "pending",
             "result": None,
             "error": None,
+            "progress": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -28,6 +29,14 @@ def update_job(job_id: str, status: str, result=None, error=None):
                 _jobs[job_id]["result"] = result
             if error is not None:
                 _jobs[job_id]["error"] = error
+
+
+def update_job_progress(job_id: str, progress_data: dict):
+    """Update progress field. progress_data: {"step": str, "detail": str}"""
+    with _lock:
+        if job_id in _jobs:
+            _jobs[job_id]["progress"] = progress_data
+            _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
 
 
 def get_job(job_id: str) -> dict | None:
