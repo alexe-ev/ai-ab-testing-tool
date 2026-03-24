@@ -7,11 +7,14 @@ import {
   getRubrics,
   dryRunExperiment,
   runFullPipeline,
+  getExperimentRuns,
+  getExportUrl,
 } from "@/lib/api";
 import type {
   TestSetListItem,
   RubricListItem,
   DryRunResult,
+  RunListItem,
 } from "@/lib/types";
 import ModelSelector, { MODELS } from "@/components/experiments/model-selector";
 import RunProgress from "@/components/experiments/run-progress";
@@ -32,7 +35,7 @@ export default function RunExperimentPage({
 
   const [testSetId, setTestSetId] = useState("");
   const [rubricId, setRubricId] = useState("");
-  const [judgeModel, setJudgeModel] = useState(MODELS[4]); // claude-sonnet
+  const [judgeModel, setJudgeModel] = useState("claude-sonnet-4-6");
   const [mode, setMode] = useState<string>("both");
 
   const [preview, setPreview] = useState<DryRunResult | null>(null);
@@ -42,6 +45,12 @@ export default function RunExperimentPage({
   const [jobId, setJobId] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [runLoading, setRunLoading] = useState(false);
+
+  const [pastRuns, setPastRuns] = useState<RunListItem[]>([]);
+
+  useEffect(() => {
+    getExperimentRuns(id).then(setPastRuns).catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     Promise.all([getTestSets(), getRubrics()])
@@ -255,6 +264,59 @@ export default function RunExperimentPage({
           <RunProgress jobId={jobId} experimentId={id} />
         )}
       </div>
+
+      {/* Past runs */}
+      {pastRuns.length > 0 && (
+        <div className="px-8 pb-8">
+          <h2 className="text-sm font-medium text-[#888] mb-3">Past runs</h2>
+          <div className="space-y-2">
+            {pastRuns.map((run) => (
+              <div
+                key={run.id}
+                className="flex items-center justify-between p-3 border border-[#222] rounded-lg"
+              >
+                <div className="space-y-0.5">
+                  <p className="text-sm text-[#ededed]">
+                    {Object.values(run.prompt_names).join(" vs ") || run.id}
+                  </p>
+                  <p className="text-xs text-[#555]">
+                    {run.total_cases} cases
+                    {run.error_count > 0 && ` · ${run.error_count} errors`}
+                    {" · "}
+                    {new Date(run.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {run.status === "complete" && (
+                    <>
+                      <a
+                        href={getExportUrl(run.id, "html")}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 text-xs border border-[#333] rounded hover:border-[#555] transition-colors"
+                      >
+                        Report
+                      </a>
+                      <Link
+                        href={`/experiments/${id}/results/${run.id}`}
+                        className="px-3 py-1 text-xs border border-[#333] rounded hover:border-[#555] transition-colors"
+                      >
+                        Details
+                      </Link>
+                    </>
+                  )}
+                  {run.status === "failed" && (
+                    <span className="text-xs text-red-400">failed</span>
+                  )}
+                  {run.status === "running" && (
+                    <span className="text-xs text-yellow-400">running</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

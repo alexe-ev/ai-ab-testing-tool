@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { getJobStatus } from "@/lib/api";
+import { getJobStatus, getExportUrl } from "@/lib/api";
 import type { JobStatus } from "@/lib/types";
 
 const STEPS = ["running", "evaluating", "analyzing", "reporting"] as const;
@@ -101,12 +101,22 @@ export default function RunProgress({ jobId, experimentId, onDone }: RunProgress
       <div className="p-4 border border-green-800 rounded-lg space-y-3">
         <p className="text-green-400 text-sm font-medium">Run complete</p>
         {runId && (
-          <Link
-            href={`/experiments/${experimentId}/results/${runId}`}
-            className="inline-block px-4 py-2 bg-white text-black text-sm rounded hover:bg-[#e0e0e0] transition-colors"
-          >
-            View Results
-          </Link>
+          <div className="flex items-center gap-3">
+            <a
+              href={getExportUrl(runId, "html")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-4 py-2 bg-white text-black text-sm rounded hover:bg-[#e0e0e0] transition-colors"
+            >
+              Open Report
+            </a>
+            <Link
+              href={`/experiments/${experimentId}/results/${runId}`}
+              className="inline-block px-4 py-2 border border-[#333] text-sm rounded hover:border-[#555] transition-colors"
+            >
+              View Details
+            </Link>
+          </div>
         )}
       </div>
     );

@@ -1,13 +1,17 @@
 "use client";
 
 const MODELS = [
-  "gpt-4o",
-  "gpt-4o-mini",
+  "gpt-5.4-pro",
+  "gpt-5.4",
   "gpt-4.1",
   "gpt-4.1-mini",
-  "claude-sonnet",
-  "claude-haiku",
-  "claude-opus",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "o4-mini",
+  "o3",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5",
 ];
 
 interface ModelSelectorProps {

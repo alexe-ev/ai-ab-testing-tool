@@ -29,7 +29,7 @@ OUTPUT_DIR = "results"
 
 
 def _validate_id(value: str, name: str = "id") -> str:
-    if not re.fullmatch(r'[\w-]+', value):
+    if not re.fullmatch(r'[\w .()-]+', value):
         raise HTTPException(status_code=400, detail=f"Invalid {name}")
     return value
 
