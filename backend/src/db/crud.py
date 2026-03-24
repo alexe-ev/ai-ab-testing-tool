@@ -187,6 +187,7 @@ def create_run(
     prompt_names: dict,
     prompt_models: dict,
     total_cases: int,
+    status: str = "pending",
 ) -> Run:
     run = Run(
         id=run_id,
@@ -195,11 +196,20 @@ def create_run(
         prompt_names=prompt_names,
         prompt_models=prompt_models,
         total_cases=total_cases,
+        status=status,
     )
     db.add(run)
     db.commit()
     db.refresh(run)
     return run
+
+
+def get_run(db: Session, run_id: str) -> Run | None:
+    return db.query(Run).filter(Run.id == run_id).first()
+
+
+def list_experiment_runs(db: Session, experiment_id: str) -> list[Run]:
+    return db.query(Run).filter(Run.experiment_id == experiment_id).order_by(Run.created_at.desc()).all()
 
 
 def update_run_status(

@@ -3,7 +3,8 @@
 backend/.venv/
 __pycache__/
 **/*.egg-info/
-results/
+/results/
+/backend/results/
 .DS_Store
 CLAUDE.md
 .claude/

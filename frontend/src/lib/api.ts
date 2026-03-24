@@ -3,6 +3,7 @@ import type {
   Rubric, RubricListItem, RubricFormData,
   ExperimentListItem,
   DryRunResult, JobStatus,
+  RunListItem, RunResultsData,
 } from "./types";
 
 const BASE_URL =
@@ -117,4 +118,16 @@ export function runFullPipeline(
 
 export function getJobStatus(jobId: string): Promise<JobStatus> {
   return apiGet<JobStatus>(`/api/jobs/${jobId}`);
+}
+
+export function getExperimentRuns(experimentId: string): Promise<RunListItem[]> {
+  return apiGet<RunListItem[]>(`/api/experiments-db/${experimentId}/runs`);
+}
+
+export function getRunResults(runId: string): Promise<RunResultsData> {
+  return apiGet<RunResultsData>(`/api/runs/${runId}/results`);
+}
+
+export function getExportUrl(runId: string, format: "html" | "markdown" | "json"): string {
+  return `${BASE_URL}/api/runs/${runId}/export/${format}`;
 }
