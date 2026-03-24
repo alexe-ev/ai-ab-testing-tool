@@ -4,6 +4,7 @@ import type {
   ExperimentListItem,
   DryRunResult, JobStatus,
   RunListItem, RunResultsData,
+  SettingItem,
 } from "./types";
 
 const BASE_URL =
@@ -130,4 +131,16 @@ export function getRunResults(runId: string): Promise<RunResultsData> {
 
 export function getExportUrl(runId: string, format: "html" | "markdown" | "json"): string {
   return `${BASE_URL}/api/runs/${runId}/export/${format}`;
+}
+
+export function getSettings(): Promise<SettingItem[]> {
+  return apiGet<SettingItem[]>("/api/settings/");
+}
+
+export function updateSetting(key: string, value: string): Promise<SettingItem> {
+  return apiPut<SettingItem>("/api/settings/", { key, value });
+}
+
+export function deleteSetting(key: string): Promise<void> {
+  return apiDelete(`/api/settings/${key}`);
 }

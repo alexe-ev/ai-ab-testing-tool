@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from src.db.models import Experiment, TestSet, TestCase, Rubric, RubricDimension, Run
+from src.db.models import Experiment, TestSet, TestCase, Rubric, RubricDimension, Run, Setting
 
 
 # ─── Test Sets ────────────────────────────────────────────────────
@@ -232,3 +232,35 @@ def update_run_status(
     db.commit()
     db.refresh(run)
     return run
+
+
+# ─── Settings ────────────────────────────────────────────────────
+
+def get_setting(db: Session, key: str) -> Setting | None:
+    return db.query(Setting).filter(Setting.key == key).first()
+
+
+def upsert_setting(db: Session, key: str, value: str) -> Setting:
+    setting = db.query(Setting).filter(Setting.key == key).first()
+    if setting is None:
+        setting = Setting(key=key, value=value)
+        db.add(setting)
+    else:
+        setting.value = value
+        setting.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(setting)
+    return setting
+
+
+def list_settings(db: Session) -> list[Setting]:
+    return db.query(Setting).all()
+
+
+def delete_setting(db: Session, key: str) -> bool:
+    setting = db.query(Setting).filter(Setting.key == key).first()
+    if setting is None:
+        return False
+    db.delete(setting)
+    db.commit()
+    return True

@@ -60,6 +60,13 @@ class RubricDimension(Base):
     rubric = relationship("Rubric", back_populates="dimensions")
 
 
+class Setting(Base):
+    __tablename__ = "settings"
+    key = Column(String, primary_key=True)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class Run(Base):
     __tablename__ = "runs"
     id = Column(String, primary_key=True)
