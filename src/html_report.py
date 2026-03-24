@@ -744,7 +744,12 @@ function renderCase() {{
             ).join('') + '</div>';
     }}
 
+    const contextHtml = c.context
+        ? `<div class="user-input" style="border-left-color:var(--accent-b);margin-bottom:8px"><strong>Context:</strong><br>${{esc(c.context)}}</div>`
+        : '';
+
     const html = `
+        ${{contextHtml}}
         <div class="user-input"><strong>Customer:</strong> ${{esc(c.input)}}</div>
         <div class="response-grid">
             <div class="response-col">
@@ -806,6 +811,7 @@ def _build_cases_json(run_data: dict, eval_data: dict, analysis: dict) -> str:
             "id": r["test_case_id"],
             "category": r.get("category", "unknown"),
             "input": r["input"],
+            "context": r.get("context"),
             "responses": r["responses"],
         }
 

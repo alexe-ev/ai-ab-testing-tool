@@ -24,15 +24,32 @@ from src.html_report import generate_html_report
 
 
 def require_api_key(config):
-    """Check that the right API key is set for the configured provider."""
+    """Check that the right API keys are set for all configured providers."""
     from src.llm import detect_provider, get_env_key
+
+    providers_needed = set()
+
+    # Global model
     model_cfg = config.get("model", {})
-    provider = detect_provider(model_cfg.get("name", ""), model_cfg.get("provider"))
-    key_name = get_env_key(provider)
-    if not os.environ.get(key_name):
+    providers_needed.add(
+        detect_provider(model_cfg.get("name", ""), model_cfg.get("provider"))
+    )
+
+    # Per-prompt model overrides
+    for prompt_cfg in config.get("prompts", {}).values():
+        if "model" in prompt_cfg:
+            providers_needed.add(detect_provider(prompt_cfg["model"]))
+
+    missing = []
+    for provider in providers_needed:
+        key_name = get_env_key(provider)
+        if not os.environ.get(key_name):
+            missing.append(key_name)
+
+    if missing:
         raise click.ClickException(
-            f"{key_name} not set. Export it before running:\n"
-            f"  export {key_name}=..."
+            "API keys not set:\n" +
+            "\n".join(f"  export {k}=..." for k in sorted(missing))
         )
 
 

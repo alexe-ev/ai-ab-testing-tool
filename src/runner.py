@@ -62,17 +62,34 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
     run_id = generate_run_id(config)
 
     model_cfg = config["model"]
-    model = model_cfg["name"]
+    default_model = model_cfg["name"]
     temperature = model_cfg.get("temperature", 0.3)
     max_tokens = model_cfg.get("max_tokens", 1024)
-    provider = detect_provider(model, model_cfg.get("provider"))
 
     prompts = config["prompts"]
     prompt_names = list(prompts.keys())
 
+    # Resolve per-prompt models and providers
+    prompt_models = {}
+    for key, pcfg in prompts.items():
+        m = pcfg.get("model", default_model)
+        p = detect_provider(m, model_cfg.get("provider") if m == default_model else None)
+        prompt_models[key] = {"model": m, "provider": p}
+
+    # Check if all prompts use the same model
+    unique_models = set(pm["model"] for pm in prompt_models.values())
+    single_model = len(unique_models) == 1
+
     print(f"\n{'━' * 50}")
     print(f"  Experiment: {config['experiment'].get('name', 'unnamed')}")
-    print(f"  Model: {model} ({provider})")
+    if single_model:
+        m = next(iter(prompt_models.values()))
+        print(f"  Model: {m['model']} ({m['provider']})")
+    else:
+        for key in prompt_names:
+            pm = prompt_models[key]
+            label = prompts[key].get("name", key)
+            print(f"  {label}: {pm['model']} ({pm['provider']})")
     print(f"  Prompts: {', '.join(prompt_names)}")
     print(f"  Test cases: {len(test_cases)}")
     print(f"  Total API calls: {len(test_cases) * len(prompt_names)}")
@@ -82,16 +99,33 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
         print("🏁 Dry run complete. No API calls made.")
         return ""
 
-    client = create_client(provider)
+    # Create one client per unique provider
+    clients = {}
+    for pm in prompt_models.values():
+        if pm["provider"] not in clients:
+            clients[pm["provider"]] = create_client(pm["provider"])
+
     results = []
     total_calls = len(test_cases) * len(prompt_names)
     call_num = 0
 
     for i, case in enumerate(test_cases):
+        context = case.get("context")
+
+        # Compose user input: prepend context if present
+        if context:
+            user_input = (
+                f"[Retrieved context]\n{context}\n\n"
+                f"[User question]\n{case['input']}"
+            )
+        else:
+            user_input = case["input"]
+
         case_results = {
             "test_case_id": case["id"],
             "category": case.get("category", "unknown"),
             "input": case["input"],
+            "context": context,
             "reference": case.get("reference"),
             "responses": {},
         }
@@ -100,15 +134,16 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
             call_num += 1
             prompt_cfg = prompts[prompt_key]
             system = prompt_cfg["system"]
+            pm = prompt_models[prompt_key]
 
             print(f"  [{call_num}/{total_calls}] {case['id']} × {prompt_cfg.get('name', prompt_key)}...", end=" ", flush=True)
 
             result = call_llm(
-                client=client,
+                client=clients[pm["provider"]],
                 system_prompt=system,
-                user_input=case["input"],
-                model=model,
-                provider=provider,
+                user_input=user_input,
+                model=pm["model"],
+                provider=pm["provider"],
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
@@ -135,6 +170,7 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
             "experiment": config["experiment"],
             "model": model_cfg,
             "prompt_names": {k: v.get("name", k) for k, v in prompts.items()},
+            "prompt_models": {k: pm["model"] for k, pm in prompt_models.items()},
         },
         "results": results,
         "summary": {
