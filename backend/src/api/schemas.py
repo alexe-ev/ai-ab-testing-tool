@@ -31,6 +31,7 @@ class JobStatusResponse(BaseModel):
     status: str
     result: Optional[Any] = None
     error: Optional[str] = None
+    progress: Optional[dict] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
