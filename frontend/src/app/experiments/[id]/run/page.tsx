@@ -12,7 +12,6 @@ import type {
   TestSetListItem,
   RubricListItem,
   DryRunResult,
-  JobStatus,
 } from "@/lib/types";
 import ModelSelector, { MODELS } from "@/components/experiments/model-selector";
 import RunProgress from "@/components/experiments/run-progress";
@@ -85,10 +84,6 @@ export default function RunExperimentPage({
     } finally {
       setRunLoading(false);
     }
-  }
-
-  function handleJobDone(_job: JobStatus) {
-    // Job is complete; RunProgress shows results
   }
 
   if (loadingData) {
@@ -257,7 +252,7 @@ export default function RunExperimentPage({
 
         {/* Progress */}
         {jobId && (
-          <RunProgress jobId={jobId} onDone={handleJobDone} />
+          <RunProgress jobId={jobId} experimentId={id} />
         )}
       </div>
     </div>

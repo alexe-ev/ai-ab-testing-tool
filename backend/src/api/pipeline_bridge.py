@@ -5,6 +5,7 @@ Converts Experiment / TestSet / Rubric DB objects into temp YAML files
 and runs the full pipeline (runner -> evaluator -> analyzer -> reporter).
 """
 
+import json
 import uuid
 from pathlib import Path
 
@@ -92,6 +93,7 @@ def run_full_pipeline(
     mode: str,
     judge_model: str,
     job_id: str,
+    experiment_id: str | None = None,
 ) -> None:
     """
     Run the full pipeline in a background thread.
@@ -100,10 +102,43 @@ def run_full_pipeline(
     Updates job progress at each step.
     On error, marks job as failed.
     """
+    from src.db.engine import SessionLocal
+    from src.db import crud
+
+    db = SessionLocal()
+    run_id = None
+
     try:
         # Step 1: run
         update_job_progress(job_id, {"step": "running", "detail": "Executing prompts against test cases"})
         run_results_path = run_experiment(config_path, output_dir)
+
+        # Create Run record after runner produces the output file
+        run_id = Path(run_results_path).stem.removeprefix("run_")
+        with open(run_results_path) as f:
+            run_json = json.load(f)
+        run_config = run_json.get("config", {})
+        prompt_names = run_config.get("prompt_names", {})
+        exp_config = run_config.get("model", {})
+        # Build prompt_models: use per-prompt model if set, else fall back to global model
+        prompts_cfg = run_config.get("prompts", {})
+        default_model = exp_config.get("name", "")
+        prompt_models = {
+            key: (pcfg.get("model", default_model) if isinstance(pcfg, dict) else default_model)
+            for key, pcfg in prompts_cfg.items()
+        }
+        total_cases = run_json.get("summary", {}).get("total_cases", 0)
+
+        crud.create_run(
+            db,
+            run_id=run_id,
+            experiment_id=experiment_id,
+            config=run_config,
+            prompt_names=prompt_names,
+            prompt_models=prompt_models,
+            total_cases=total_cases,
+            status="running",
+        )
 
         # Step 2: evaluate
         update_job_progress(job_id, {"step": "evaluating", "detail": "Scoring responses with judge model"})
@@ -119,6 +154,8 @@ def run_full_pipeline(
         summary_path = generate_summary_json(analysis_path, output_dir)
         html_path = generate_html_report(analysis_path, run_results_path, eval_path, output_dir)
 
+        crud.update_run_status(db, run_id, "complete", result_path=run_results_path)
+
         update_job(
             job_id,
             "done",
@@ -132,8 +169,14 @@ def run_full_pipeline(
             },
         )
     except Exception as e:
+        if run_id is not None:
+            try:
+                crud.update_run_status(db, run_id, "failed")
+            except Exception:
+                pass
         update_job(job_id, "failed", error=str(e))
     finally:
+        db.close()
         # Clean up temp files
         for path in [config_path, test_set_path, rubric_path]:
             try:

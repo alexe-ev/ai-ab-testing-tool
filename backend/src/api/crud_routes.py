@@ -4,11 +4,14 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
+import json
+from pathlib import Path
 
 from src.db.engine import get_db
 from src.db import crud
 from src.api.jobs import create_job
 from src.api.pipeline_bridge import build_config_from_db, run_full_pipeline
+from src.api.routes import _validate_id
 
 
 # ─── Request / Response schemas ───────────────────────────────────
@@ -387,9 +390,100 @@ def run_full_experiment(id: str, body: RunFullRequest, db: Session = Depends(get
             mode=body.mode,
             judge_model=body.judge_model,
             job_id=job_id,
+            experiment_id=experiment.id,
         )
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
 
     return RunFullResponse(job_id=job_id, status="pending")
+
+
+# ─── Run list + results schemas ───────────────────────────────────
+
+class RunListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    status: str
+    prompt_names: dict
+    prompt_models: dict
+    total_cases: int
+    error_count: int
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+
+class RunResultsResponse(BaseModel):
+    run_id: str
+    run_data: Optional[dict] = None
+    eval_data: Optional[dict] = None
+    analysis: Optional[dict] = None
+
+
+# ─── Experiment runs sub-resource ─────────────────────────────────
+
+@experiments_db_router.get("/{id}/runs", response_model=list[RunListItem])
+def list_runs(id: str, db: Session = Depends(get_db)):
+    exp = crud.get_experiment(db, id)
+    if exp is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    return crud.list_experiment_runs(db, id)
+
+
+# ─── Runs router ──────────────────────────────────────────────────
+
+runs_router = APIRouter(prefix="/api/runs", tags=["runs"])
+
+
+@runs_router.get("/{run_id}/results", response_model=RunResultsResponse)
+def get_run_results(run_id: str, db: Session = Depends(get_db)):
+    _validate_id(run_id, "run_id")
+    run = crud.get_run(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    output_dir = Path("results")
+    run_data = eval_data = analysis = None
+
+    run_files = list(output_dir.glob(f"run_{run_id}*.json"))
+    if run_files:
+        with open(run_files[0]) as f:
+            run_data = json.load(f)
+
+    eval_files = list(output_dir.glob(f"eval_{run_id}*.json"))
+    if eval_files:
+        with open(eval_files[0]) as f:
+            eval_data = json.load(f)
+
+    analysis_files = list(output_dir.glob(f"analysis_{run_id}*.json"))
+    if analysis_files:
+        with open(analysis_files[0]) as f:
+            analysis = json.load(f)
+
+    return RunResultsResponse(run_id=run_id, run_data=run_data, eval_data=eval_data, analysis=analysis)
+
+
+@runs_router.get("/{run_id}/export/{format}")
+def export_run(run_id: str, format: str, db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+
+    _validate_id(run_id, "run_id")
+    run = crud.get_run(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    output_dir = Path("results")
+    format_map = {
+        "html": (f"report_{run_id}*.html", "text/html"),
+        "markdown": (f"report_{run_id}*.md", "text/markdown"),
+        "json": (f"summary_{run_id}*.json", "application/json"),
+    }
+    if format not in format_map:
+        raise HTTPException(status_code=422, detail=f"Invalid format: {format}. Must be html, markdown, or json")
+
+    pattern, media_type = format_map[format]
+    files = list(output_dir.glob(pattern))
+    if not files:
+        raise HTTPException(status_code=404, detail=f"Report file not found for format: {format}")
+
+    return FileResponse(str(files[0]), media_type=media_type, filename=files[0].name)

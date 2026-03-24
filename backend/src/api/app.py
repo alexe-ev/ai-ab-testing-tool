@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import router
-from src.api.crud_routes import test_sets_router, rubrics_router, experiments_db_router
+from src.api.crud_routes import test_sets_router, rubrics_router, experiments_db_router, runs_router
 from src.db.engine import create_tables
 
 
@@ -26,3 +26,4 @@ app.include_router(router)
 app.include_router(test_sets_router)
 app.include_router(rubrics_router)
 app.include_router(experiments_db_router)
+app.include_router(runs_router)

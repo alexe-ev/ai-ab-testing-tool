@@ -542,3 +542,168 @@ def test_run_full_empty_test_set_returns_422(client):
         json={"test_set_id": empty_ts_id, "rubric_id": rubric_id},
     )
     assert resp.status_code == 422
+
+
+# ─── Runs endpoints ────────────────────────────────────────────────
+
+def _seed_run(client, exp_id: str, run_id: str) -> None:
+    """Seed a Run record directly into the test DB via the app's overridden dependency."""
+    from src.api.app import app
+    from src.db.engine import get_db
+
+    db = next(app.dependency_overrides[get_db]())
+    from src.db import crud
+    crud.create_run(
+        db,
+        run_id=run_id,
+        experiment_id=exp_id,
+        config={},
+        prompt_names={"a": "Prompt A", "b": "Prompt B"},
+        prompt_models={"a": "gpt-4o", "b": "gpt-4o"},
+        total_cases=2,
+        status="complete",
+    )
+
+
+# ─── List runs ────────────────────────────────────────────────────
+
+def test_list_runs_happy_path(client):
+    exp_id = client.post("/api/experiments-db/", json={"name": "Exp for runs"}).json()["id"]
+    _seed_run(client, exp_id, "run-aaa-001")
+    _seed_run(client, exp_id, "run-aaa-002")
+    resp = client.get(f"/api/experiments-db/{exp_id}/runs")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 2
+    run_ids = {r["id"] for r in data}
+    assert "run-aaa-001" in run_ids
+    assert "run-aaa-002" in run_ids
+
+
+def test_list_runs_experiment_not_found(client):
+    resp = client.get("/api/experiments-db/nonexistent/runs")
+    assert resp.status_code == 404
+
+
+def test_list_runs_empty(client):
+    exp_id = client.post("/api/experiments-db/", json={"name": "Empty Exp"}).json()["id"]
+    resp = client.get(f"/api/experiments-db/{exp_id}/runs")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+# ─── Get run results ──────────────────────────────────────────────
+
+def test_get_run_results_happy_path(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+
+    exp_id = client.post("/api/experiments-db/", json={"name": "Results Exp"}).json()["id"]
+    run_id = "results-run-001"
+    _seed_run(client, exp_id, run_id)
+
+    import json as _json
+    (results_dir / f"run_{run_id}.json").write_text(_json.dumps({"summary": {"total_cases": 2}}))
+    (results_dir / f"eval_{run_id}.json").write_text(_json.dumps({"scores": []}))
+    (results_dir / f"analysis_{run_id}.json").write_text(_json.dumps({"recommendation": {}}))
+
+    resp = client.get(f"/api/runs/{run_id}/results")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["run_id"] == run_id
+    assert data["run_data"] is not None
+    assert data["eval_data"] is not None
+    assert data["analysis"] is not None
+
+
+def test_get_run_results_no_files(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "results").mkdir()
+
+    exp_id = client.post("/api/experiments-db/", json={"name": "Results Exp 2"}).json()["id"]
+    run_id = "results-run-002"
+    _seed_run(client, exp_id, run_id)
+
+    resp = client.get(f"/api/runs/{run_id}/results")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["run_id"] == run_id
+    assert data["run_data"] is None
+    assert data["eval_data"] is None
+    assert data["analysis"] is None
+
+
+def test_get_run_results_not_found(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "results").mkdir()
+    resp = client.get("/api/runs/nonexistent-run/results")
+    assert resp.status_code == 404
+
+
+# ─── Export run ───────────────────────────────────────────────────
+
+def test_export_run_json_happy_path(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+
+    exp_id = client.post("/api/experiments-db/", json={"name": "Export Exp"}).json()["id"]
+    run_id = "export-run-001"
+    _seed_run(client, exp_id, run_id)
+
+    import json as _json
+    (results_dir / f"summary_{run_id}.json").write_text(_json.dumps({"winner": "a"}))
+
+    resp = client.get(f"/api/runs/{run_id}/export/json")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+
+
+def test_export_run_html_happy_path(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+
+    exp_id = client.post("/api/experiments-db/", json={"name": "Export Exp HTML"}).json()["id"]
+    run_id = "export-run-html-001"
+    _seed_run(client, exp_id, run_id)
+
+    (results_dir / f"report_{run_id}.html").write_text("<html><body>report</body></html>")
+
+    resp = client.get(f"/api/runs/{run_id}/export/html")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+
+
+def test_export_run_not_found(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "results").mkdir()
+    resp = client.get("/api/runs/nonexistent-run/export/json")
+    assert resp.status_code == 404
+
+
+def test_export_run_invalid_format(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "results").mkdir()
+
+    exp_id = client.post("/api/experiments-db/", json={"name": "Export Inv"}).json()["id"]
+    run_id = "export-run-inv-001"
+    _seed_run(client, exp_id, run_id)
+
+    resp = client.get(f"/api/runs/{run_id}/export/pdf")
+    assert resp.status_code == 422
+
+
+def test_export_run_file_missing(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+
+    exp_id = client.post("/api/experiments-db/", json={"name": "Export Missing"}).json()["id"]
+    run_id = "export-run-miss-001"
+    _seed_run(client, exp_id, run_id)
+
+    # No report file created
+    resp = client.get(f"/api/runs/{run_id}/export/html")
+    assert resp.status_code == 404
