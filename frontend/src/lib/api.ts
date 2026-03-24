@@ -1,3 +1,5 @@
+import type { TestSet, TestSetListItem, TestSetFormData } from "./types";
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -33,4 +35,24 @@ export function apiPut<T>(path: string, body: unknown): Promise<T> {
 
 export function apiDelete(path: string): Promise<void> {
   return apiFetch<void>(path, { method: "DELETE" });
+}
+
+export function getTestSets(): Promise<TestSetListItem[]> {
+  return apiGet<TestSetListItem[]>("/api/test-sets/");
+}
+
+export function getTestSet(id: string): Promise<TestSet> {
+  return apiGet<TestSet>(`/api/test-sets/${id}`);
+}
+
+export function createTestSet(data: TestSetFormData): Promise<TestSet> {
+  return apiPost<TestSet>("/api/test-sets/", data);
+}
+
+export function updateTestSet(id: string, data: TestSetFormData): Promise<TestSet> {
+  return apiPut<TestSet>(`/api/test-sets/${id}`, data);
+}
+
+export function deleteTestSet(id: string): Promise<void> {
+  return apiDelete(`/api/test-sets/${id}`);
 }
