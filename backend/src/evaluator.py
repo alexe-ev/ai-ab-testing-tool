@@ -322,6 +322,7 @@ def evaluate_run(
     output_dir: str = "results",
     mode: str = "both",
     judge_model: str = "claude-sonnet-4-20250514",
+    on_progress=None,
 ) -> str:
     """
     Evaluate all responses from a run.
@@ -378,6 +379,16 @@ def evaluate_run(
         if mode in ("pointwise", "both"):
             print(f"  [{i+1}/{total}] Pointwise: {case['test_case_id']}...", end=" ", flush=True)
 
+            if on_progress:
+                on_progress({
+                    "step": "evaluating",
+                    "case_id": case["test_case_id"],
+                    "case_index": i + 1,
+                    "total": total,
+                    "detail": f"Pointwise scoring: {case['test_case_id']}",
+                    "type": "info",
+                })
+
             scores_a = evaluate_pointwise(client, case["input"], resp_a, rubric, judge_model, provider, cat, ctx)
             eval_calls += 1
             scores_b = evaluate_pointwise(client, case["input"], resp_b, rubric, judge_model, provider, cat, ctx)
@@ -389,9 +400,29 @@ def evaluate_run(
             }
             print("✓")
 
+            if on_progress:
+                on_progress({
+                    "step": "evaluating",
+                    "case_id": case["test_case_id"],
+                    "case_index": i + 1,
+                    "total": total,
+                    "detail": f"Pointwise done: {case['test_case_id']}",
+                    "type": "success",
+                })
+
         # ── Pairwise with swap test ──
         if mode in ("pairwise", "both"):
             print(f"  [{i+1}/{total}] Pairwise:  {case['test_case_id']}...", end=" ", flush=True)
+
+            if on_progress:
+                on_progress({
+                    "step": "evaluating",
+                    "case_id": case["test_case_id"],
+                    "case_index": i + 1,
+                    "total": total,
+                    "detail": f"Pairwise comparison: {case['test_case_id']}",
+                    "type": "info",
+                })
 
             pairwise = evaluate_pairwise_with_swap(
                 client, case["input"], resp_a, resp_b, rubric, judge_model, provider, cat, ctx
@@ -401,6 +432,16 @@ def evaluate_run(
             case_eval["pairwise"] = pairwise
             status = "✓" if pairwise["consistent"] else "⚠ inconsistent"
             print(f"{status} → {pairwise['winner']}")
+
+            if on_progress:
+                on_progress({
+                    "step": "evaluating",
+                    "case_id": case["test_case_id"],
+                    "case_index": i + 1,
+                    "total": total,
+                    "detail": f"Pairwise: {pairwise['winner']}" + ("" if pairwise["consistent"] else " (inconsistent)"),
+                    "type": "success",
+                })
 
         evaluations.append(case_eval)
 

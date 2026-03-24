@@ -14,6 +14,7 @@ def create_job() -> str:
             "result": None,
             "error": None,
             "progress": None,
+            "log": [],
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -39,9 +40,29 @@ def update_job_progress(job_id: str, progress_data: dict):
             _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
 
 
+def append_job_log(job_id: str, entry: dict):
+    """Append a log entry. entry: {step, case_id, case_index, total, detail, type}"""
+    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        if job_id in _jobs:
+            _jobs[job_id]["log"].append(entry)
+
+
+def get_job_log(job_id: str, since: int = 0) -> list[dict] | None:
+    """Get log entries starting from index `since`. Returns None if job not found."""
+    with _lock:
+        if job_id not in _jobs:
+            return None
+        return _jobs[job_id]["log"][since:]
+
+
 def get_job(job_id: str) -> dict | None:
     with _lock:
-        return _jobs.get(job_id, {}).copy() if job_id in _jobs else None
+        if job_id not in _jobs:
+            return None
+        job = _jobs[job_id].copy()
+        job.pop("log", None)  # Don't include log in status polling
+        return job
 
 
 def clear_all():

@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 from fastapi import APIRouter, HTTPException
 
-from src.api.jobs import create_job, update_job, get_job
+from src.api.jobs import create_job, update_job, get_job, get_job_log
 from src.api.schemas import (
     RunRequest,
     EvaluateRequest,
@@ -269,3 +269,45 @@ def get_job_status(job_id: str):
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
     return JobStatusResponse(job_id=job_id, **job)
+
+
+@router.get("/jobs/{job_id}/stream")
+def stream_job_log(job_id: str):
+    import asyncio
+    import time
+    from fastapi.responses import StreamingResponse
+
+    job = get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    def event_stream():
+        cursor = 0
+        while True:
+            entries = get_job_log(job_id, since=cursor)
+            if entries is None:
+                return
+
+            for entry in entries:
+                data = json.dumps(entry, ensure_ascii=False)
+                yield f"data: {data}\n\n"
+                cursor += 1
+
+            # Check if job is done/failed
+            current = get_job(job_id)
+            if current and current["status"] in ("done", "failed"):
+                final = {"type": "done", "status": current["status"]}
+                if current.get("result"):
+                    final["result"] = current["result"]
+                if current.get("error"):
+                    final["error"] = current["error"]
+                yield f"data: {json.dumps(final)}\n\n"
+                return
+
+            time.sleep(0.5)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

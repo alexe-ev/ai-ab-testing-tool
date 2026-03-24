@@ -51,7 +51,7 @@ def generate_run_id(config: dict) -> str:
     return f"{name}_{ts}_{h}"
 
 
-def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool = False) -> str:
+def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool = False, on_progress=None) -> str:
     """
     Main runner: loads config, iterates test cases, calls LLM for each prompt.
 
@@ -136,7 +136,18 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
             system = prompt_cfg["system"]
             pm = prompt_models[prompt_key]
 
-            print(f"  [{call_num}/{total_calls}] {case['id']} × {prompt_cfg.get('name', prompt_key)}...", end=" ", flush=True)
+            label = prompt_cfg.get('name', prompt_key)
+            print(f"  [{call_num}/{total_calls}] {case['id']} × {label}...", end=" ", flush=True)
+
+            if on_progress:
+                on_progress({
+                    "step": "running",
+                    "case_id": case["id"],
+                    "case_index": i + 1,
+                    "total": len(test_cases),
+                    "detail": f"Calling {pm['model']} for {label}: {case['id']}",
+                    "type": "info",
+                })
 
             result = call_llm(
                 client=clients[pm["provider"]],
@@ -152,9 +163,27 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
 
             if result.get("error"):
                 print(f"❌ {result['error']}")
+                if on_progress:
+                    on_progress({
+                        "step": "running",
+                        "case_id": case["id"],
+                        "case_index": i + 1,
+                        "total": len(test_cases),
+                        "detail": f"Error: {result['error']}",
+                        "type": "error",
+                    })
             else:
                 tokens = result["input_tokens"] + result["output_tokens"]
                 print(f"✓ ({tokens} tokens, {result['latency_seconds']}s)")
+                if on_progress:
+                    on_progress({
+                        "step": "running",
+                        "case_id": case["id"],
+                        "case_index": i + 1,
+                        "total": len(test_cases),
+                        "detail": f"{label}: {tokens} tokens, {result['latency_seconds']}s",
+                        "type": "success",
+                    })
 
         results.append(case_results)
 
