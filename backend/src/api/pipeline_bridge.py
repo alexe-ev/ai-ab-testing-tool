@@ -16,7 +16,7 @@ from src.evaluator import evaluate_run
 from src.analyzer import analyze_evaluation
 from src.reporter import generate_markdown_report, generate_summary_json
 from src.html_report import generate_html_report
-from src.api.jobs import update_job, update_job_progress
+from src.api.jobs import update_job, update_job_progress, append_job_log
 
 
 def build_config_from_db(experiment, test_set, rubric, judge_model: str) -> tuple[str, str, str]:
@@ -109,9 +109,19 @@ def run_full_pipeline(
     run_id = None
 
     try:
+        def on_progress(entry):
+            append_job_log(job_id, entry)
+            update_job_progress(job_id, {
+                "step": entry.get("step", ""),
+                "detail": entry.get("detail", ""),
+                "case_index": entry.get("case_index"),
+                "total": entry.get("total"),
+            })
+
         # Step 1: run
         update_job_progress(job_id, {"step": "running", "detail": "Executing prompts against test cases"})
-        run_results_path = run_experiment(config_path, output_dir)
+        append_job_log(job_id, {"step": "running", "detail": "Starting prompt execution", "type": "info"})
+        run_results_path = run_experiment(config_path, output_dir, on_progress=on_progress)
 
         # Create Run record after runner produces the output file
         run_id = Path(run_results_path).stem.removeprefix("run_")
@@ -142,13 +152,16 @@ def run_full_pipeline(
 
         # Step 2: evaluate
         update_job_progress(job_id, {"step": "evaluating", "detail": "Scoring responses with judge model"})
-        eval_path = evaluate_run(run_results_path, rubric_path, output_dir, mode, judge_model)
+        append_job_log(job_id, {"step": "evaluating", "detail": "Starting evaluation", "type": "info"})
+        eval_path = evaluate_run(run_results_path, rubric_path, output_dir, mode, judge_model, on_progress=on_progress)
 
         # Step 3: analyze
+        append_job_log(job_id, {"step": "analyzing", "detail": "Computing statistics", "type": "info"})
         update_job_progress(job_id, {"step": "analyzing", "detail": "Computing statistics"})
         analysis_path = analyze_evaluation(eval_path, output_dir, run_path=run_results_path)
 
         # Step 4: report
+        append_job_log(job_id, {"step": "reporting", "detail": "Generating reports", "type": "info"})
         update_job_progress(job_id, {"step": "reporting", "detail": "Generating reports"})
         report_path = generate_markdown_report(analysis_path, run_results_path, output_dir)
         summary_path = generate_summary_json(analysis_path, output_dir)
