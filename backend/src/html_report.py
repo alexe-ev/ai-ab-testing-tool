@@ -50,9 +50,22 @@ def _build_html(analysis_data: dict, run_data: dict, eval_data: dict) -> str:
     name_a = a["prompt_a"]["name"]
     name_b = a["prompt_b"]["name"]
     exp_name = _esc(run_data["config"]["experiment"].get("name", "Unnamed"))
-    model = _esc(run_data["config"]["model"]["name"])
     total_cases = run_data["summary"]["total_cases"]
     timestamp = analysis_data.get("timestamp", "")
+
+    # Per-prompt model info
+    op = a.get("operational_metrics", {})
+    per_prompt = op.get("per_prompt", {})
+    prompt_keys = list(run_data["config"].get("prompt_models", {}).keys())
+    model_a = None
+    model_b = None
+    if per_prompt and len(prompt_keys) >= 2:
+        model_a = per_prompt.get(prompt_keys[0], {}).get("model")
+        model_b = per_prompt.get(prompt_keys[1], {}).get("model")
+    if model_a is None:
+        model_a = run_data["config"]["model"]["name"]
+    if model_b is None:
+        model_b = run_data["config"]["model"]["name"]
 
     rec = a.get("recommendation", {})
     winner = rec.get("winner", "inconclusive")
@@ -243,6 +256,82 @@ def _build_html(analysis_data: dict, run_data: dict, eval_data: dict) -> str:
 
     if notable_html:
         notable_html = f'<div class="section"><h2>Notable Cases</h2>{notable_html}</div>'
+
+    # Warning banner
+    warning_html = ""
+    if op.get("multi_variable_warning"):
+        warning_html = """<div class="warning-banner">
+            <strong>Multi-variable change detected.</strong>
+            Both the prompt text and the model differ between variants.
+            Results reflect the combined effect and cannot isolate prompt quality alone.
+        </div>"""
+
+    # Performance section
+    performance_html = ""
+    if per_prompt and len(prompt_keys) >= 2:
+        pp_a = per_prompt.get(prompt_keys[0], {})
+        pp_b = per_prompt.get(prompt_keys[1], {})
+        lat_a = pp_a.get("latency", {})
+        lat_b = pp_b.get("latency", {})
+        tok_a = pp_a.get("tokens", {})
+        tok_b = pp_b.get("tokens", {})
+        cost_a = pp_a.get("cost_usd")
+        cost_b = pp_b.get("cost_usd")
+
+        def _fmt_lat_html(v):
+            return f"{v:.3f}s" if v is not None else "n/a"
+
+        def _fmt_cost_html(v):
+            return f"${v:.4f}" if v is not None else "N/A"
+
+        # Latency bars: scale to max of all values for display
+        all_lats = [v for v in [lat_a.get("avg"), lat_a.get("p50"), lat_a.get("p95"),
+                                 lat_b.get("avg"), lat_b.get("p50"), lat_b.get("p95")]
+                    if v is not None]
+        lat_max = max(all_lats) if all_lats else 1.0
+
+        def _lat_bar(v):
+            if v is None:
+                return '<span style="color:var(--text2)">n/a</span>'
+            pct = min(v / lat_max * 100, 100)
+            return f'<div style="display:flex;align-items:center;gap:8px"><div style="height:12px;border-radius:3px;background:var(--accent-a-bg);border:1px solid rgba(108,159,255,0.25);width:{pct:.0f}%;min-width:4px"></div><span style="font-size:0.8rem">{v:.3f}s</span></div>'
+
+        performance_html = f"""
+        <div class="section" id="perf-section">
+            <h2>Performance</h2>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div>
+                    <h3>Latency</h3>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>Metric</th>
+                            <th>{_esc(name_a)}</th>
+                            <th>{_esc(name_b)}</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr><td>Avg</td><td>{_lat_bar(lat_a.get("avg"))}</td><td>{_lat_bar(lat_b.get("avg"))}</td></tr>
+                            <tr><td>p50</td><td>{_lat_bar(lat_a.get("p50"))}</td><td>{_lat_bar(lat_b.get("p50"))}</td></tr>
+                            <tr><td>p95</td><td>{_lat_bar(lat_a.get("p95"))}</td><td>{_lat_bar(lat_b.get("p95"))}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div>
+                    <h3>Tokens &amp; Cost</h3>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>Metric</th>
+                            <th>{_esc(name_a)}</th>
+                            <th>{_esc(name_b)}</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr><td>Total tokens</td><td>{tok_a.get("total", 0)}</td><td>{tok_b.get("total", 0)}</td></tr>
+                            <tr><td>Avg / response</td><td>{tok_a.get("avg_per_response", "n/a")}</td><td>{tok_b.get("avg_per_response", "n/a")}</td></tr>
+                            <tr><td>Est. cost (USD)</td><td>{_fmt_cost_html(cost_a)}</td><td>{_fmt_cost_html(cost_b)}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>"""
 
     # Response viewer: build case data for JS
     cases_json = _build_cases_json(run_data, eval_data, a)
@@ -611,6 +700,30 @@ h3 {{ font-size: 0.95rem; font-weight: 600; margin-bottom: 10px; color: var(--te
     font-size: 0.75rem;
     color: var(--text2);
 }}
+
+/* Warning banner */
+.warning-banner {{
+    background: rgba(232,195,74,0.12);
+    border: 1px solid rgba(232,195,74,0.4);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+    color: var(--yellow);
+}}
+
+/* Model badge */
+.model-badge {{
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    margin-left: 4px;
+    vertical-align: middle;
+}}
 </style>
 </head>
 <body>
@@ -619,7 +732,8 @@ h3 {{ font-size: 0.95rem; font-weight: 600; margin-bottom: 10px; color: var(--te
     <div class="header-left">
         <h1>{exp_name}</h1>
         <div class="meta">
-            <span class="meta-item"><strong>Model:</strong> {model}</span>
+            <span class="meta-item"><strong>{_esc(name_a)}:</strong> {_esc(model_a)}</span>
+            <span class="meta-item"><strong>{_esc(name_b)}:</strong> {_esc(model_b)}</span>
             <span class="meta-item"><strong>Cases:</strong> {total_cases}</span>
             <span class="meta-item"><strong>Prompts:</strong> {_esc(name_a)} vs {_esc(name_b)}</span>
         </div>
@@ -637,6 +751,10 @@ h3 {{ font-size: 0.95rem; font-weight: 600; margin-bottom: 10px; color: var(--te
 </div>
 
 <div class="tab-panel active" id="tab-overview">
+
+{warning_html}
+
+{performance_html}
 
 {chart_html}
 
@@ -753,7 +871,7 @@ function renderCase() {{
         <div class="user-input"><strong>Customer:</strong> ${{esc(c.input)}}</div>
         <div class="response-grid">
             <div class="response-col">
-                <h4 class="col-a">${{NAME_A}}</h4>
+                <h4 class="col-a">${{NAME_A}}${{respA.model ? '<span class="model-badge">' + esc(respA.model) + '</span>' : ''}}</h4>
                 <div class="response-text">${{esc(respA.response || 'No response')}}</div>
                 ${{scoreChips(c.scores_a, 'score-chip-a')}}
                 <div class="response-meta">
@@ -762,7 +880,7 @@ function renderCase() {{
                 </div>
             </div>
             <div class="response-col">
-                <h4 class="col-b">${{NAME_B}}</h4>
+                <h4 class="col-b">${{NAME_B}}${{respB.model ? '<span class="model-badge">' + esc(respB.model) + '</span>' : ''}}</h4>
                 <div class="response-text">${{esc(respB.response || 'No response')}}</div>
                 ${{scoreChips(c.scores_b, 'score-chip-b')}}
                 <div class="response-meta">
@@ -805,14 +923,25 @@ def _build_cases_json(run_data: dict, eval_data: dict, analysis: dict) -> str:
     for e in eval_data.get("evaluations", []):
         evals_by_id[e["test_case_id"]] = e
 
+    # Resolve model names per prompt key
+    prompt_models = run_data.get("config", {}).get("prompt_models", {})
+
     cases = []
     for r in run_data["results"]:
+        # Augment each response with model name if not already present
+        responses = {}
+        for pk, resp in r["responses"].items():
+            resp_copy = dict(resp)
+            if "model" not in resp_copy or not resp_copy["model"]:
+                resp_copy["model"] = prompt_models.get(pk)
+            responses[pk] = resp_copy
+
         case = {
             "id": r["test_case_id"],
             "category": r.get("category", "unknown"),
             "input": r["input"],
             "context": r.get("context"),
-            "responses": r["responses"],
+            "responses": responses,
         }
 
         ev = evals_by_id.get(r["test_case_id"], {})

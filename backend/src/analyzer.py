@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 import numpy as np
 from scipy import stats
 
+from src.pricing import calculate_cost
+
 
 # ─── Core statistics ──────────────────────────────────────────────
 
@@ -133,12 +135,121 @@ def extract_pairwise_results(evaluations: list[dict]) -> list[dict]:
     return results
 
 
+# ─── Operational metrics ──────────────────────────────────────────
+
+def compute_operational_metrics(run_data: dict) -> dict:
+    """
+    Compute per-prompt operational metrics: model, latency, tokens, cost.
+
+    Returns a dict with per-prompt stats and a multi_variable_warning flag.
+    """
+    config = run_data.get("config", {})
+    prompt_models = config.get("prompt_models", {})
+    prompt_names = config.get("prompt_names", {})
+    results = run_data.get("results", [])
+
+    prompt_keys = list(prompt_models.keys()) if prompt_models else []
+
+    per_prompt: dict[str, dict] = {}
+
+    for key in prompt_keys:
+        model = prompt_models.get(key, "unknown")
+        latencies = []
+        total_input = 0
+        total_output = 0
+        n = 0
+
+        for r in results:
+            resp = r.get("responses", {}).get(key, {})
+            if resp.get("error"):
+                continue
+            lat = resp.get("latency_seconds")
+            if lat is not None:
+                latencies.append(float(lat))
+            inp = resp.get("input_tokens", 0) or 0
+            out = resp.get("output_tokens", 0) or 0
+            total_input += inp
+            total_output += out
+            n += 1
+
+        total_tokens = total_input + total_output
+        cost = calculate_cost(model, total_input, total_output)
+
+        lat_avg = round(float(np.mean(latencies)), 3) if latencies else None
+        lat_p50 = round(float(np.percentile(latencies, 50)), 3) if latencies else None
+        lat_p95 = round(float(np.percentile(latencies, 95)), 3) if latencies else None
+        avg_tokens = round(total_tokens / n, 1) if n > 0 else None
+
+        per_prompt[key] = {
+            "name": prompt_names.get(key, key),
+            "model": model,
+            "n_responses": n,
+            "latency": {
+                "avg": lat_avg,
+                "p50": lat_p50,
+                "p95": lat_p95,
+            },
+            "tokens": {
+                "total_input": total_input,
+                "total_output": total_output,
+                "total": total_tokens,
+                "avg_per_response": avg_tokens,
+            },
+            "cost_usd": cost,
+        }
+
+    # Multi-variable warning: both prompt texts AND models differ
+    prompt_keys_list = list(prompt_keys)
+    multi_variable_warning = False
+    if len(prompt_keys_list) >= 2:
+        key_a, key_b = prompt_keys_list[0], prompt_keys_list[1]
+        model_a = prompt_models.get(key_a)
+        model_b = prompt_models.get(key_b)
+        # Warning when models differ (run_data does not store prompt text,
+        # so model difference is the detectable multi-variable signal).
+        multi_variable_warning = model_a != model_b
+
+    return {
+        "per_prompt": per_prompt,
+        "multi_variable_warning": multi_variable_warning,
+    }
+
+
+def _load_run_data(eval_data: dict, run_path: str | None, output_dir: str) -> dict | None:
+    """
+    Try to load the run JSON file.
+    Uses run_path if provided; otherwise searches output_dir for run_{run_id}.json.
+    Returns None if not found (graceful degradation).
+    """
+    if run_path:
+        try:
+            with open(run_path) as f:
+                return json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    run_id = eval_data.get("run_id")
+    if run_id:
+        candidate = Path(output_dir) / f"run_{run_id}.json"
+        if candidate.exists():
+            try:
+                with open(candidate) as f:
+                    return json.load(f)
+            except (OSError, json.JSONDecodeError):
+                return None
+
+    return None
+
+
 # ─── Main analysis ────────────────────────────────────────────────
 
-def analyze_evaluation(eval_path: str, output_dir: str = "results") -> str:
+def analyze_evaluation(eval_path: str, output_dir: str = "results", run_path: str | None = None) -> str:
     """
     Full statistical analysis of evaluation results.
     Returns path to analysis JSON.
+
+    run_path: optional path to run_*.json for operational metrics.
+    If not provided, tries to find it automatically next to the eval file.
     """
     with open(eval_path) as f:
         eval_data = json.load(f)
@@ -297,6 +408,11 @@ def analyze_evaluation(eval_path: str, output_dir: str = "results") -> str:
 
     # ── Generate recommendation ──
     analysis["recommendation"] = generate_recommendation(analysis, name_a, name_b)
+
+    # ── Operational metrics ──
+    run_data = _load_run_data(eval_data, run_path, output_dir)
+    if run_data is not None:
+        analysis["operational_metrics"] = compute_operational_metrics(run_data)
 
     # Save
     output_path = Path(output_dir)

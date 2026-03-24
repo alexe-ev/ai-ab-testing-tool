@@ -42,10 +42,33 @@ def generate_markdown_report(
     lines.append(f"# A/B Test Report: {exp_name}")
     lines.append("")
     lines.append(f"**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    lines.append(f"**Model:** {run_data['config']['model']['name']}")
     lines.append(f"**Test cases:** {run_data['summary']['total_cases']}")
     lines.append(f"**Prompts:** {name_a} vs {name_b}")
     lines.append("")
+
+    # ── Per-prompt model table ──
+    op = a.get("operational_metrics", {})
+    per_prompt = op.get("per_prompt", {})
+    prompt_keys = list(run_data["config"].get("prompt_models", {}).keys())
+    if per_prompt and prompt_keys:
+        lines.append("| Prompt | Model |")
+        lines.append("|--------|-------|")
+        for key in prompt_keys:
+            pp = per_prompt.get(key, {})
+            p_name = pp.get("name", key)
+            p_model = pp.get("model", run_data["config"].get("model", {}).get("name", "unknown"))
+            lines.append(f"| {p_name} | {p_model} |")
+        lines.append("")
+    else:
+        # Fallback: show global model
+        lines.append(f"**Model:** {run_data['config']['model']['name']}")
+        lines.append("")
+
+    # ── Multi-variable warning ──
+    if op.get("multi_variable_warning"):
+        lines.append("> **Warning:** This experiment changed both prompt text AND model. "
+                     "Results reflect the combined effect and cannot isolate prompt quality alone.")
+        lines.append("")
 
     # ── Recommendation (upfront) ──
     rec = a.get("recommendation", {})
@@ -60,6 +83,50 @@ def generate_markdown_report(
         emoji = "🟢" if confidence == "high" else "🟡"
         lines.append(f"**{emoji} Recommended: {winner}** (confidence: {confidence})")
     lines.append("")
+
+    # ── Performance Metrics ──
+    if per_prompt and len(prompt_keys) >= 2:
+        lines.append("## Performance Metrics")
+        lines.append("")
+
+        key_a_key = prompt_keys[0]
+        key_b_key = prompt_keys[1]
+        pp_a = per_prompt.get(key_a_key, {})
+        pp_b = per_prompt.get(key_b_key, {})
+        lat_a = pp_a.get("latency", {})
+        lat_b = pp_b.get("latency", {})
+        tok_a = pp_a.get("tokens", {})
+        tok_b = pp_b.get("tokens", {})
+        cost_a = pp_a.get("cost_usd")
+        cost_b = pp_b.get("cost_usd")
+
+        # Latency table
+        lines.append("### Latency (seconds)")
+        lines.append("")
+        lines.append(f"| Metric | {name_a} | {name_b} |")
+        lines.append("|--------|---------|---------|")
+
+        def _fmt_lat(v):
+            return f"{v:.3f}s" if v is not None else "n/a"
+
+        lines.append(f"| Avg | {_fmt_lat(lat_a.get('avg'))} | {_fmt_lat(lat_b.get('avg'))} |")
+        lines.append(f"| p50 | {_fmt_lat(lat_a.get('p50'))} | {_fmt_lat(lat_b.get('p50'))} |")
+        lines.append(f"| p95 | {_fmt_lat(lat_a.get('p95'))} | {_fmt_lat(lat_b.get('p95'))} |")
+        lines.append("")
+
+        # Tokens and cost table
+        lines.append("### Tokens and Cost")
+        lines.append("")
+        lines.append(f"| Metric | {name_a} | {name_b} |")
+        lines.append("|--------|---------|---------|")
+        lines.append(f"| Total tokens | {tok_a.get('total', 0)} | {tok_b.get('total', 0)} |")
+        lines.append(f"| Avg tokens/response | {tok_a.get('avg_per_response', 'n/a')} | {tok_b.get('avg_per_response', 'n/a')} |")
+
+        def _fmt_cost(v):
+            return f"${v:.4f}" if v is not None else "N/A"
+
+        lines.append(f"| Est. cost (USD) | {_fmt_cost(cost_a)} | {_fmt_cost(cost_b)} |")
+        lines.append("")
 
     # ── Pointwise scores table ──
     pw = a.get("pointwise", {})
@@ -216,6 +283,19 @@ def generate_summary_json(analysis_path: str, output_dir: str = "results") -> st
     pair = a.get("pairwise", {})
     rec = a.get("recommendation", {})
 
+    # Per-prompt model names
+    op = a.get("operational_metrics", {})
+    per_prompt = op.get("per_prompt", {})
+    prompt_keys = list(per_prompt.keys())
+    models_dict = None
+    if len(prompt_keys) >= 2:
+        key_a_key = prompt_keys[0]
+        key_b_key = prompt_keys[1]
+        models_dict = {
+            "prompt_a": per_prompt[key_a_key].get("model"),
+            "prompt_b": per_prompt[key_b_key].get("model"),
+        }
+
     summary = {
         "run_id": analysis_data["run_id"],
         "prompt_a": name_a,
@@ -229,6 +309,12 @@ def generate_summary_json(analysis_path: str, output_dir: str = "results") -> st
         "swap_consistency": pair.get("swap_test_consistency"),
         "dimensions": dims_summary,
     }
+
+    if models_dict is not None:
+        summary["models"] = models_dict
+
+    if op:
+        summary["operational_metrics"] = op
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
