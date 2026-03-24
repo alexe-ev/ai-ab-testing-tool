@@ -38,3 +38,31 @@ export interface ExperimentFormData {
   hypothesis: string;
   config: ExperimentConfig;
 }
+
+export interface TestCase {
+  id: string;
+  case_identifier: string;
+  category: string;
+  input: string;
+  context?: string;
+  reference?: string;
+}
+
+export interface TestSet {
+  id: string;
+  name: string;
+  cases: TestCase[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TestSetListItem {
+  id: string;
+  name: string;
+  case_count: number;
+}
+
+export interface TestSetFormData {
+  name: string;
+  cases: Omit<TestCase, "id">[];
+}
