@@ -66,3 +66,40 @@ export interface TestSetFormData {
   name: string;
   cases: Omit<TestCase, "id">[];
 }
+
+export interface RubricLevel {
+  score: number;
+  description: string;
+}
+
+export interface RubricDimension {
+  id: string;
+  name: string;
+  description: string;
+  weight: number;
+  levels: RubricLevel[];
+  sort_order: number;
+}
+
+export interface Rubric {
+  id: string;
+  name: string;
+  dimensions: RubricDimension[];
+}
+
+export interface RubricListItem {
+  id: string;
+  name: string;
+}
+
+export interface RubricDimensionFormData {
+  name: string;
+  description: string;
+  weight: number;
+  levels: RubricLevel[];
+}
+
+export interface RubricFormData {
+  name: string;
+  dimensions: RubricDimensionFormData[];
+}
