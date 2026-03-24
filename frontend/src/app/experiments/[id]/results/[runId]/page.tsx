@@ -73,6 +73,15 @@ export default function ResultsPage({
       </div>
 
       <div className="p-8 max-w-4xl space-y-5">
+        <div>
+          <Link
+            href={`/experiments/${id}/results/${runId}/responses`}
+            className="inline-block px-3 py-1.5 text-sm border border-[#333] rounded text-[#888] hover:text-[#ededed] hover:border-[#555]"
+          >
+            Browse Responses
+          </Link>
+        </div>
+
         <SummaryCard
           recommendation={analysis.recommendation}
           pairwise={analysis.pairwise}
