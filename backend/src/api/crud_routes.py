@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
@@ -96,6 +97,7 @@ class ExperimentCreate(BaseModel):
     name: str
     description: str = ""
     hypothesis: str = ""
+    config: Optional[dict] = None
 
 
 class ExperimentOut(BaseModel):
@@ -105,6 +107,9 @@ class ExperimentOut(BaseModel):
     name: str
     description: str
     hypothesis: str
+    config: Optional[dict] = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class ExperimentListItem(BaseModel):
@@ -229,6 +234,7 @@ def create_experiment(body: ExperimentCreate, db: Session = Depends(get_db)):
         name=body.name,
         description=body.description,
         hypothesis=body.hypothesis,
+        config=body.config,
     )
 
 
@@ -263,6 +269,7 @@ def update_experiment(id: str, body: ExperimentCreate, db: Session = Depends(get
         name=body.name,
         description=body.description,
         hypothesis=body.hypothesis,
+        config=body.config,
     )
     if exp is None:
         raise HTTPException(status_code=404, detail="Experiment not found")

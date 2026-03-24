@@ -290,3 +290,54 @@ def test_create_experiment_missing_required_field(client):
     # Missing "name"
     resp = client.post("/api/experiments-db/", json={"description": "no name"})
     assert resp.status_code == 422
+
+
+# ─── Experiment config field ───────────────────────────────────────
+
+def test_create_experiment_with_config(client):
+    config = {
+        "prompts": {
+            "a": {"name": "Prompt A", "system": "You are helpful.", "model": "gpt-4o", "temperature": 0.7, "max_tokens": 512},
+            "b": {"name": "Prompt B", "system": "You are concise.", "model": "claude-haiku", "temperature": 0.3, "max_tokens": 256},
+        },
+        "judge_model": "claude-sonnet",
+    }
+    payload = {"name": "Config Exp", "description": "desc", "hypothesis": "hyp", "config": config}
+    resp = client.post("/api/experiments-db/", json=payload)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["config"] == config
+
+
+def test_create_experiment_without_config_returns_null(client):
+    resp = client.post("/api/experiments-db/", json={"name": "No Config"})
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["config"] is None
+
+
+def test_get_experiment_returns_config(client):
+    config = {"judge_model": "gpt-4o", "prompts": {"a": {"name": "A", "system": "sys a", "model": "gpt-4o", "temperature": 0.5, "max_tokens": 100}}}
+    create_resp = client.post("/api/experiments-db/", json={"name": "Exp With Config", "config": config})
+    exp_id = create_resp.json()["id"]
+    resp = client.get(f"/api/experiments-db/{exp_id}")
+    assert resp.status_code == 200
+    assert resp.json()["config"] == config
+
+
+def test_update_experiment_config(client):
+    create_resp = client.post("/api/experiments-db/", json={"name": "Before Update"})
+    exp_id = create_resp.json()["id"]
+    new_config = {"judge_model": "claude-sonnet", "prompts": {"a": {"name": "A", "system": "sys", "model": "gpt-4o", "temperature": 0.0, "max_tokens": 50}}}
+    resp = client.put(f"/api/experiments-db/{exp_id}", json={"name": "After Update", "config": new_config})
+    assert resp.status_code == 200
+    assert resp.json()["config"] == new_config
+
+
+def test_update_experiment_clears_config(client):
+    config = {"judge_model": "gpt-4o"}
+    create_resp = client.post("/api/experiments-db/", json={"name": "Has Config", "config": config})
+    exp_id = create_resp.json()["id"]
+    resp = client.put(f"/api/experiments-db/{exp_id}", json={"name": "Has Config", "config": None})
+    assert resp.status_code == 200
+    assert resp.json()["config"] is None
