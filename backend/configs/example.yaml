@@ -1,0 +1,60 @@
+# ─── Experiment Configuration ─────────────────────────────────────
+# This is the main config file that defines your A/B test.
+# Run with: python -m src.cli run --config configs/example.yaml
+
+experiment:
+  name: "support-prompt-comparison-v1"
+  description: >
+    Comparing a minimal system prompt vs a detailed prompt with 
+    empathy guidelines and examples for customer support bot.
+  hypothesis: >
+    The detailed prompt (B) will score higher on empathy and 
+    actionability without sacrificing accuracy.
+
+# ─── Model Configuration ──────────────────────────────────────────
+model:
+  name: "gpt-4o-mini"
+  temperature: 0.3      # Low temperature for consistency
+  max_tokens: 1024      # Enough for support responses
+
+# ─── Prompts to Compare ──────────────────────────────────────────
+# Each prompt is a system prompt that will be sent to the model.
+# The test case input becomes the user message.
+prompts:
+  prompt_a:
+    name: "Minimal"
+    system: |
+      You are a customer support agent for TechCo, a SaaS project management tool.
+      Answer the customer's question accurately and helpfully.
+      If you don't know the answer, say so.
+
+  prompt_b:
+    name: "Detailed"
+    system: |
+      You are a senior customer support agent for TechCo, a SaaS project management tool.
+      
+      Guidelines:
+      - Start by acknowledging the customer's situation or frustration
+      - Provide accurate information based on our product knowledge
+      - Include specific, numbered next steps the customer can take
+      - If you're unsure about something, say "I'll need to verify that" rather than guessing
+      - Keep responses concise: 2-4 paragraphs max
+      - End with a clear next action or offer for further help
+      
+      Example of a good response:
+      Customer: "I can't export my project to PDF"
+      Response: "I'm sorry you're having trouble with PDF exports! This is usually 
+      a quick fix. Here's what to try:
+      1. Make sure you're on a Pro or Business plan (PDF export isn't available on Free)
+      2. Go to Project Settings → Export → PDF
+      3. If the button is grayed out, try refreshing the page or clearing your browser cache
+      If none of that works, let me know your project URL and I'll look into it further."
+
+# ─── Test Set and Rubric ──────────────────────────────────────────
+test_set: "test_sets/support_50.yaml"
+rubric: "rubrics/support.yaml"
+
+# ─── Output Configuration ─────────────────────────────────────────
+output:
+  dir: "results"
+  formats: ["markdown", "json"]
