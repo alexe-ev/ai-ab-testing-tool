@@ -1,4 +1,4 @@
-import type { TestSet, TestSetListItem, TestSetFormData } from "./types";
+import type { TestSet, TestSetListItem, TestSetFormData, Rubric, RubricListItem, RubricFormData } from "./types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -55,4 +55,24 @@ export function updateTestSet(id: string, data: TestSetFormData): Promise<TestSe
 
 export function deleteTestSet(id: string): Promise<void> {
   return apiDelete(`/api/test-sets/${id}`);
+}
+
+export function getRubrics(): Promise<RubricListItem[]> {
+  return apiGet<RubricListItem[]>("/api/rubrics/");
+}
+
+export function getRubric(id: string): Promise<Rubric> {
+  return apiGet<Rubric>(`/api/rubrics/${id}`);
+}
+
+export function createRubric(data: RubricFormData): Promise<Rubric> {
+  return apiPost<Rubric>("/api/rubrics/", data);
+}
+
+export function updateRubric(id: string, data: RubricFormData): Promise<Rubric> {
+  return apiPut<Rubric>(`/api/rubrics/${id}`, data);
+}
+
+export function deleteRubric(id: string): Promise<void> {
+  return apiDelete(`/api/rubrics/${id}`);
 }
