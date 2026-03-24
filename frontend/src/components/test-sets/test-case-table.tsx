@@ -127,10 +127,12 @@ export default function TestCaseTable({ cases, onChange }: TestCaseTableProps) {
             return (
               <div key={c._key} className="border-b border-[#1a1a1a] last:border-b-0">
                 {/* Row */}
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setExpandedKey(expanded ? null : c._key)}
-                  className="w-full grid grid-cols-[2rem_8rem_1fr_2rem_7rem] gap-0 px-4 py-3 text-left hover:bg-[#0d0d0d] transition-colors"
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedKey(expanded ? null : c._key); } }}
+                  className="w-full grid grid-cols-[2rem_8rem_1fr_2rem_7rem] gap-0 px-4 py-3 text-left hover:bg-[#0d0d0d] transition-colors cursor-pointer"
                 >
                   <span className="text-xs text-[#555]">{i + 1}</span>
                   <span className="text-xs text-[#888] truncate pr-2">
@@ -163,7 +165,7 @@ export default function TestCaseTable({ cases, onChange }: TestCaseTableProps) {
                       Del
                     </button>
                   </span>
-                </button>
+                </div>
 
                 {/* Inline editor */}
                 {expanded && (
