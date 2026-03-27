@@ -2,7 +2,7 @@
   <img src="ai-ab-testing-tool.png" alt="AI A/B Testing Tool" width="100%">
 </p>
 
-# prompt-ab: A/B Testing for LLM Prompts
+# AI A/B testing tool
 
 Run a structured experiment on two system prompts, get statistical evidence, pick the better one.
 
