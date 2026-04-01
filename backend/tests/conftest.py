@@ -1,6 +1,9 @@
 """Shared fixtures for the test suite."""
 
+import os
+
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,6 +11,31 @@ from sqlalchemy.pool import StaticPool
 
 from src.api.app import app
 from src.db.engine import Base, get_db
+
+
+def write_config(tmp_path, config_dict):
+    p = os.path.join(tmp_path, "config.yaml")
+    with open(p, "w") as f:
+        yaml.dump(config_dict, f)
+    return p
+
+
+def write_test_set(tmp_path, cases):
+    p = os.path.join(tmp_path, "test_set.yaml")
+    with open(p, "w") as f:
+        yaml.dump({"test_cases": cases}, f)
+    return p
+
+
+def make_mock_response(text="mock response"):
+    return {
+        "response": text,
+        "input_tokens": 5,
+        "output_tokens": 10,
+        "latency_seconds": 0.1,
+        "model": "gpt-4o-mini",
+        "stop_reason": "end_turn",
+    }
 
 
 @pytest.fixture(autouse=True)

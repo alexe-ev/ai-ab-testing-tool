@@ -24,6 +24,8 @@ export interface ExperimentConfig {
   };
   judge_model: string;
   context_source?: ContextSourceConfig;
+  context_template?: string;
+  context_position?: "user" | "system";
 }
 
 export interface Experiment {

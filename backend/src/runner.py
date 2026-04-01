@@ -17,6 +17,8 @@ import yaml
 from src.llm import detect_provider, create_client, call_llm
 from src.context_source import ContextFetcher, ContextSourceError
 
+DEFAULT_CONTEXT_TEMPLATE = "[Retrieved context]\n{context}\n\n[User question]\n{input}"
+
 
 def load_config(config_path: str) -> dict:
     """Load and validate experiment configuration."""
@@ -112,6 +114,9 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
     if context_source_cfg:
         fetcher = ContextFetcher(context_source_cfg)
 
+    context_template = config.get("context_template", DEFAULT_CONTEXT_TEMPLATE)
+    context_position = config.get("context_position", "user")
+
     results = []
     total_calls = len(test_cases) * len(prompt_names)
     call_num = 0
@@ -131,13 +136,17 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
                 fetch_error = str(e)
                 context = None
 
-        # Compose user input: prepend context if present
+        # Compose user input: apply context_template and context_position
         if context:
-            user_input = (
-                f"[Retrieved context]\n{context}\n\n"
-                f"[User question]\n{case['input']}"
-            )
+            rendered = context_template.replace("{context}", context).replace("{input}", case["input"])
+            if context_position == "system":
+                context_for_system = rendered
+                user_input = case["input"]
+            else:
+                context_for_system = None
+                user_input = rendered
         else:
+            context_for_system = None
             user_input = case["input"]
 
         case_results = {
@@ -146,6 +155,8 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
             "input": case["input"],
             "context": context,
             "context_source": context_origin,
+            "context_template": context_template if context else None,
+            "context_position": context_position if context else None,
             "reference": case.get("reference"),
             "responses": {},
         }
@@ -157,6 +168,8 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
             call_num += 1
             prompt_cfg = prompts[prompt_key]
             system = prompt_cfg["system"]
+            if context_for_system:
+                system = system + "\n\n" + context_for_system
             pm = prompt_models[prompt_key]
 
             label = prompt_cfg.get('name', prompt_key)
