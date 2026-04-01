@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import PromptEditor from "./prompt-editor";
 import DiffViewer from "./diff-viewer";
 import ModelSelector from "./model-selector";
 import ContextSourceEditor from "./context-source-editor";
-import type { ExperimentFormData, PromptConfig, ContextSourceConfig } from "@/lib/types";
+import { getTestSets, getRubrics } from "@/lib/api";
+import type { ExperimentFormData, PromptConfig, ContextSourceConfig, TestSetListItem, RubricListItem } from "@/lib/types";
 
 export const DEFAULT_PROMPT: PromptConfig = {
   name: "",
@@ -40,6 +42,17 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
+  const [testSets, setTestSets] = useState<TestSetListItem[]>([]);
+  const [rubrics, setRubrics] = useState<RubricListItem[]>([]);
+
+  useEffect(() => {
+    Promise.all([getTestSets(), getRubrics()])
+      .then(([ts, rubs]) => {
+        setTestSets(ts);
+        setRubrics(rubs);
+      })
+      .catch((e) => console.error("Failed to load test sets/rubrics:", e));
+  }, []);
 
   function updateMeta(key: "name" | "description" | "hypothesis", val: string) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -80,6 +93,20 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
     setForm((f) => ({
       ...f,
       config: { ...f.config, context_position: val },
+    }));
+  }
+
+  function updateTestSetId(val: string) {
+    setForm((f) => ({
+      ...f,
+      config: { ...f.config, test_set_id: val || undefined },
+    }));
+  }
+
+  function updateRubricId(val: string) {
+    setForm((f) => ({
+      ...f,
+      config: { ...f.config, rubric_id: val || undefined },
     }));
   }
 
@@ -191,6 +218,62 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
             onChange={updateJudgeModel}
           />
         </div>
+      </section>
+
+      {/* Test Set */}
+      <section className="mb-8">
+        <h2 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-4">
+          Test Set
+        </h2>
+        <p className="text-xs text-[#888] mb-2">Which inputs should both prompts respond to?</p>
+        {testSets.length === 0 ? (
+          <p className="text-xs text-[#888]">
+            <Link href="/test-sets/new" className="underline underline-offset-2">No test sets yet.</Link>
+          </p>
+        ) : (
+          <div className="max-w-xs">
+            <select
+              value={form.config.test_set_id ?? ""}
+              onChange={(e) => updateTestSetId(e.target.value)}
+              className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-[#ededed] text-sm focus:outline-none focus:border-[#555]"
+            >
+              <option value="">Select a test set...</option>
+              {testSets.map((ts) => (
+                <option key={ts.id} value={ts.id}>
+                  {ts.name} ({ts.case_count} cases)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </section>
+
+      {/* Rubric */}
+      <section className="mb-8">
+        <h2 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-4">
+          Rubric
+        </h2>
+        <p className="text-xs text-[#888] mb-2">How should responses be scored?</p>
+        {rubrics.length === 0 ? (
+          <p className="text-xs text-[#888]">
+            <Link href="/rubrics/new" className="underline underline-offset-2">No rubrics yet.</Link>
+          </p>
+        ) : (
+          <div className="max-w-xs">
+            <select
+              value={form.config.rubric_id ?? ""}
+              onChange={(e) => updateRubricId(e.target.value)}
+              className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-[#ededed] text-sm focus:outline-none focus:border-[#555]"
+            >
+              <option value="">Select a rubric...</option>
+              {rubrics.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </section>
 
       {/* Context source */}

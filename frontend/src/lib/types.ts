@@ -23,6 +23,8 @@ export interface ExperimentConfig {
     b: PromptConfig;
   };
   judge_model: string;
+  test_set_id?: string;
+  rubric_id?: string;
   context_source?: ContextSourceConfig;
   context_template?: string;
   context_position?: "user" | "system";
