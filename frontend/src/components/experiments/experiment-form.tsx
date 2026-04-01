@@ -7,6 +7,7 @@ import PromptEditor from "./prompt-editor";
 import DiffViewer from "./diff-viewer";
 import ModelSelector from "./model-selector";
 import ContextSourceEditor from "./context-source-editor";
+import Tooltip from "@/components/ui/tooltip";
 import { getTestSets, getRubrics } from "@/lib/api";
 import type { ExperimentFormData, PromptConfig, ContextSourceConfig, TestSetListItem, RubricListItem } from "@/lib/types";
 
@@ -211,7 +212,9 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
       {/* Judge model */}
       <section className="mb-8">
         <h2 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-4">
-          Judge Model
+          <Tooltip text="A separate LLM that scores both responses. Use a strong model for reliable evaluation. This model is NOT the one being tested.">
+            Judge Model
+          </Tooltip>
         </h2>
         <div className="max-w-xs">
           <ModelSelector

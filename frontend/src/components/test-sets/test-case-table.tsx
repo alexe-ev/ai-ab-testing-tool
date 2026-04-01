@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Tooltip from "@/components/ui/tooltip";
 
 export interface EditableCase {
   _key: string; // local-only stable key for React
@@ -116,7 +117,9 @@ export default function TestCaseTable({ cases, onChange }: TestCaseTableProps) {
             <span className="text-xs text-[#555] font-medium">#</span>
             <span className="text-xs text-[#555] font-medium">Category</span>
             <span className="text-xs text-[#555] font-medium">Input</span>
-            <span className="text-xs text-[#555] font-medium">Ctx</span>
+            <Tooltip text="Optional background info sent with the user input, e.g. account details or retrieved documents.">
+              <span className="text-xs text-[#555] font-medium">Context</span>
+            </Tooltip>
             <span className="text-xs text-[#555] font-medium">Actions</span>
           </div>
 

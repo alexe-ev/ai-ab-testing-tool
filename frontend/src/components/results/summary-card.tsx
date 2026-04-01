@@ -1,6 +1,7 @@
 "use client";
 
 import type { Recommendation, PairwiseData } from "@/lib/types";
+import Tooltip from "@/components/ui/tooltip";
 
 interface SummaryCardProps {
   recommendation: Recommendation;
@@ -41,11 +42,13 @@ export default function SummaryCard({
         <span className="px-3 py-1 bg-white text-black text-sm font-semibold rounded">
           {winner}
         </span>
-        <span
-          className={`px-2 py-0.5 text-xs rounded border font-medium ${confidenceColor}`}
-        >
-          {confidence} confidence
-        </span>
+        <Tooltip text="Based on p-value and effect size. High = strong evidence. Medium = suggestive. Low = inconclusive.">
+          <span
+            className={`px-2 py-0.5 text-xs rounded border font-medium ${confidenceColor}`}
+          >
+            {confidence} confidence
+          </span>
+        </Tooltip>
       </div>
 
       <div className="flex gap-6">

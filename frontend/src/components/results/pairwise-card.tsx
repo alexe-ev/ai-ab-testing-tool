@@ -1,6 +1,7 @@
 "use client";
 
 import type { PairwiseData } from "@/lib/types";
+import Tooltip from "@/components/ui/tooltip";
 
 interface PairwiseCardProps {
   pairwise: PairwiseData;
@@ -84,7 +85,9 @@ export default function PairwiseCard({ pairwise, promptA, promptB }: PairwiseCar
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#888] mb-0.5">Swap consistency</p>
+          <Tooltip text="Pairwise comparison is run twice with A/B order swapped. 100% = same winner both times = no positional bias.">
+            <span className="text-xs text-[#888]">Swap consistency</span>
+          </Tooltip>
           <p className={`font-semibold ${consistencyColor}`}>
             {consistencyNum !== null ? `${(consistencyNum * 100).toFixed(0)}%` : "—"}
           </p>
