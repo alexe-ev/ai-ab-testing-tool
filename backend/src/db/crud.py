@@ -131,8 +131,8 @@ def delete_rubric(db: Session, id: str) -> bool:
 
 # ─── Experiments ──────────────────────────────────────────────────
 
-def create_experiment(db: Session, name: str, description: str = "", hypothesis: str = "", config: dict | None = None) -> Experiment:
-    exp = Experiment(name=name, description=description, hypothesis=hypothesis, config=config)
+def create_experiment(db: Session, name: str, description: str = "", hypothesis: str = "", config: dict | None = None, parent_id: str | None = None) -> Experiment:
+    exp = Experiment(name=name, description=description, hypothesis=hypothesis, config=config, parent_id=parent_id)
     db.add(exp)
     db.commit()
     db.refresh(exp)
@@ -153,7 +153,7 @@ def list_experiments(db: Session) -> list[tuple]:
 
 
 def update_experiment(
-    db: Session, id: str, name: str, description: str = "", hypothesis: str = "", config: dict | None = None
+    db: Session, id: str, name: str, description: str = "", hypothesis: str = "", config: dict | None = None, parent_id: str | None = None
 ) -> Experiment | None:
     exp = db.query(Experiment).filter(Experiment.id == id).first()
     if exp is None:
@@ -162,6 +162,7 @@ def update_experiment(
     exp.description = description
     exp.hypothesis = hypothesis
     exp.config = config
+    exp.parent_id = parent_id
     exp.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(exp)

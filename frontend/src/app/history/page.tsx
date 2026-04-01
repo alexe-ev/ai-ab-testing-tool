@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getRunHistory, getExperiments } from "@/lib/api";
 import type { RunHistoryItem, ExperimentListItem } from "@/lib/types";
+import Link from "next/link";
 
 const STATUS_OPTIONS = ["", "complete", "failed", "running", "pending"];
 const SORT_COLUMNS = [
@@ -38,6 +39,7 @@ export default function HistoryPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [experiments, setExperiments] = useState<ExperimentListItem[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [filterExperiment, setFilterExperiment] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -49,7 +51,7 @@ export default function HistoryPage() {
   useEffect(() => {
     getExperiments()
       .then(setExperiments)
-      .catch(() => {});
+      .catch((e: unknown) => console.error("Failed to load experiments:", e));
   }, []);
 
   const fetchRuns = useCallback(() => {
@@ -97,7 +99,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex gap-3 mb-6 flex-wrap">
+      <div className="flex gap-3 mb-6 flex-wrap items-center">
         <select
           value={filterExperiment}
           onChange={(e) => { setFilterExperiment(e.target.value); setOffset(0); }}
@@ -126,6 +128,26 @@ export default function HistoryPage() {
           onChange={(e) => { setFilterModel(e.target.value); setOffset(0); }}
           className="bg-[#111] border border-[#333] text-[#ededed] text-sm rounded px-3 py-1.5 focus:outline-none focus:border-[#555] w-44"
         />
+
+        {selectedIds.length > 0 && (
+          <span className="text-[#555] text-xs">{selectedIds.length} selected</span>
+        )}
+
+        {selectedIds.length === 2 ? (
+          <Link
+            href={`/history/compare?a=${encodeURIComponent(selectedIds[0])}&b=${encodeURIComponent(selectedIds[1])}`}
+            className="px-3 py-1.5 bg-white text-black text-sm rounded hover:bg-[#e0e0e0] transition-colors"
+          >
+            Compare
+          </Link>
+        ) : (
+          <button
+            disabled
+            className="px-3 py-1.5 border border-[#333] text-sm rounded text-[#555] opacity-40 cursor-not-allowed"
+          >
+            Compare
+          </button>
+        )}
       </div>
 
       {error && (
@@ -148,6 +170,7 @@ export default function HistoryPage() {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-[#222] text-[#555] text-xs">
+                  <th className="pb-2 pr-3 font-normal w-6"></th>
                   <th className="text-left pb-2 pr-4 font-normal">Experiment</th>
                   <th
                     className="text-left pb-2 pr-4 font-normal cursor-pointer hover:text-[#ededed] select-none"
@@ -176,16 +199,39 @@ export default function HistoryPage() {
                   const modelB = promptKeys[1] ? item.prompt_models[promptKeys[1]] : "-";
                   const metrics = item.summary_metrics;
 
+                  const isSelected = selectedIds.includes(item.id);
                   return (
                     <tr
                       key={item.id}
-                      className="border-b border-[#1a1a1a] hover:bg-[#111] cursor-pointer transition-colors"
+                      className={`border-b border-[#1a1a1a] hover:bg-[#111] cursor-pointer transition-colors${isSelected ? " bg-[#0f1a0f]" : ""}`}
                       onClick={() => {
                         if (item.experiment_id) {
                           router.push(`/experiments/${item.experiment_id}/results/${item.id}`);
                         }
                       }}
                     >
+                      <td
+                        className="py-3 pr-3"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedIds((prev) => {
+                            if (prev.includes(item.id)) {
+                              return prev.filter((id) => id !== item.id);
+                            }
+                            if (prev.length >= 2) {
+                              return [prev[1], item.id];
+                            }
+                            return [...prev, item.id];
+                          });
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="accent-white cursor-pointer"
+                        />
+                      </td>
                       <td className="py-3 pr-4 text-[#ededed]">
                         {item.experiment_name ?? <span className="text-[#555]">—</span>}
                       </td>

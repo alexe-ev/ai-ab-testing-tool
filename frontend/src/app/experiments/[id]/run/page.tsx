@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   getTestSets,
   getRubrics,
@@ -9,15 +10,19 @@ import {
   runFullPipeline,
   getExperimentRuns,
   getExportUrl,
+  getIterationChain,
+  cloneExperiment,
 } from "@/lib/api";
 import type {
   TestSetListItem,
   RubricListItem,
   DryRunResult,
   RunListItem,
+  IterationChainItem,
 } from "@/lib/types";
-import ModelSelector, { MODELS } from "@/components/experiments/model-selector";
+import ModelSelector from "@/components/experiments/model-selector";
 import RunProgress from "@/components/experiments/run-progress";
+import TrendChart from "@/components/experiments/trend-chart";
 
 const MODES = ["both", "pointwise", "pairwise"] as const;
 
@@ -27,6 +32,7 @@ export default function RunExperimentPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
 
   const [testSets, setTestSets] = useState<TestSetListItem[]>([]);
   const [rubrics, setRubrics] = useState<RubricListItem[]>([]);
@@ -47,9 +53,12 @@ export default function RunExperimentPage({
   const [runLoading, setRunLoading] = useState(false);
 
   const [pastRuns, setPastRuns] = useState<RunListItem[]>([]);
+  const [chain, setChain] = useState<IterationChainItem[]>([]);
+  const [cloning, setCloning] = useState(false);
 
   useEffect(() => {
     getExperimentRuns(id).then(setPastRuns).catch(() => {});
+    getIterationChain(id).then(setChain).catch(() => {});
   }, [id]);
 
   useEffect(() => {
@@ -95,6 +104,18 @@ export default function RunExperimentPage({
     }
   }
 
+  async function handleCloneIterate() {
+    setCloning(true);
+    try {
+      const newExp = await cloneExperiment(id);
+      router.push(`/experiments/${newExp.id}/edit`);
+    } catch (e: unknown) {
+      setRunError(e instanceof Error ? e.message : "Failed to clone experiment");
+    } finally {
+      setCloning(false);
+    }
+  }
+
   if (loadingData) {
     return (
       <div className="p-8">
@@ -115,10 +136,54 @@ export default function RunExperimentPage({
     <div>
       <div className="px-8 pt-8 pb-4 border-b border-[#222] flex items-center justify-between">
         <h1 className="text-xl font-semibold">Run Experiment</h1>
-        <Link href="/" className="text-[#888] text-sm hover:text-[#ededed]">
-          Back
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCloneIterate}
+            disabled={cloning}
+            className="px-3 py-1.5 border border-[#333] text-sm rounded hover:border-[#555] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {cloning ? "Cloning..." : "Clone & Iterate"}
+          </button>
+          <Link href="/" className="text-[#888] text-sm hover:text-[#ededed]">
+            Back
+          </Link>
+        </div>
       </div>
+
+      {/* Iteration chain */}
+      {chain.length > 1 && (
+        <div className="px-8 pt-6 pb-2">
+          <h2 className="text-xs text-[#555] mb-3 uppercase tracking-wide">Iteration chain</h2>
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {chain.map((item, idx) => {
+              const isCurrent = item.id === id;
+              return (
+                <div key={item.id} className="flex items-center gap-2 shrink-0">
+                  <Link
+                    href={`/experiments/${item.id}/run`}
+                    className={`px-3 py-2 border rounded-lg text-xs max-w-[140px] block${
+                      isCurrent
+                        ? " border-[#555] bg-[#111] text-[#ededed]"
+                        : " border-[#222] text-[#888] hover:border-[#444] hover:text-[#ededed]"
+                    } transition-colors`}
+                  >
+                    <p className="truncate font-medium">{item.name}</p>
+                    <p className="text-[#555] mt-0.5">
+                      {item.last_run_metrics
+                        ? `delta: ${item.last_run_metrics.score_delta >= 0 ? "+" : ""}${item.last_run_metrics.score_delta.toFixed(2)}`
+                        : "No runs"}
+                    </p>
+                  </Link>
+                  {idx < chain.length - 1 && (
+                    <span className="text-[#444] text-sm">→</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <TrendChart chain={chain} />
+        </div>
+      )}
 
       <div className="p-8 max-w-xl space-y-6">
         {/* Test set selector */}

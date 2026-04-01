@@ -12,9 +12,12 @@ class Experiment(Base):
     description = Column(Text, default="")
     hypothesis = Column(Text, default="")
     config = Column(JSON, nullable=True)
+    parent_id = Column(String, ForeignKey("experiments.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     runs = relationship("Run", back_populates="experiment", cascade="all, delete-orphan")
+    children = relationship("Experiment", back_populates="parent")
+    parent = relationship("Experiment", remote_side="Experiment.id", back_populates="children")
 
 
 class TestSet(Base):

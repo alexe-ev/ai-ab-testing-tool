@@ -17,6 +17,7 @@ from src.analyzer import analyze_evaluation
 from src.reporter import generate_markdown_report, generate_summary_json
 from src.html_report import generate_html_report
 from src.api.jobs import update_job, update_job_progress, append_job_log
+from src.api.routes import OUTPUT_DIR
 
 
 def extract_summary_metrics(analysis_data: dict) -> dict:
@@ -68,7 +69,7 @@ def backfill_summary_metrics(db) -> None:
     """
     from src.db.models import Run
 
-    output_dir = Path("results")
+    output_dir = Path(OUTPUT_DIR)
     runs = db.query(Run).filter(
         Run.status == "complete",
     ).all()
@@ -98,7 +99,7 @@ def build_config_from_db(experiment, test_set, rubric, judge_model: str) -> tupl
     Returns (config_path, test_set_path, rubric_path) — paths to temp files.
     Caller is responsible for deleting them after use.
     """
-    output_dir = Path("results")
+    output_dir = Path(OUTPUT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     tmp_id = str(uuid.uuid4())[:8]
@@ -147,7 +148,7 @@ def build_config_from_db(experiment, test_set, rubric, judge_model: str) -> tupl
         "test_set": test_set_path,
         "rubric": rubric_path,
         "judge": {"model": judge_model},
-        "output": {"dir": "results"},
+        "output": {"dir": OUTPUT_DIR},
     }
 
     config_path = str(output_dir / f"_tmp_config_{tmp_id}.yaml")
