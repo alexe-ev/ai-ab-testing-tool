@@ -92,6 +92,34 @@ def backfill_summary_metrics(db) -> None:
     db.commit()
 
 
+def backfill_prompt_models(db) -> None:
+    """
+    Backfill prompt_models for runs that have empty prompt_models.
+    Reads from the run JSON files in the results directory.
+    """
+    from src.db.models import Run
+
+    output_dir = Path(OUTPUT_DIR)
+    runs = db.query(Run).filter(Run.status == "complete").all()
+
+    for run in runs:
+        if run.prompt_models:
+            continue
+        run_files = list(output_dir.glob(f"run_{run.id}*.json"))
+        if not run_files:
+            continue
+        try:
+            with open(run_files[0]) as f:
+                run_data = json.load(f)
+            pm = run_data.get("config", {}).get("prompt_models", {})
+            if pm:
+                run.prompt_models = pm
+        except Exception:
+            continue
+
+    db.commit()
+
+
 def build_config_from_db(experiment, test_set, rubric, judge_model: str) -> tuple[str, str, str]:
     """
     Convert DB entities into temp YAML files and a config dict.
@@ -214,14 +242,7 @@ def run_full_pipeline(
             run_json = json.load(f)
         run_config = run_json.get("config", {})
         prompt_names = run_config.get("prompt_names", {})
-        exp_config = run_config.get("model", {})
-        # Build prompt_models: use per-prompt model if set, else fall back to global model
-        prompts_cfg = run_config.get("prompts", {})
-        default_model = exp_config.get("name", "")
-        prompt_models = {
-            key: (pcfg.get("model", default_model) if isinstance(pcfg, dict) else default_model)
-            for key, pcfg in prompts_cfg.items()
-        }
+        prompt_models = run_config.get("prompt_models", {})
         total_cases = run_json.get("summary", {}).get("total_cases", 0)
 
         crud.create_run(
