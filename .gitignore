@@ -14,3 +14,4 @@ node_modules/
 frontend/.env*
 backend/.env
 backend/data/
+.playwright-mcp/

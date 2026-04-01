@@ -6,12 +6,24 @@ export interface PromptConfig {
   max_tokens: number;
 }
 
+export interface ContextSourceConfig {
+  type: "script" | "http";
+  command?: string;
+  url?: string;
+  method?: "GET" | "POST";
+  headers?: Record<string, string>;
+  body_template?: Record<string, unknown>;
+  response_path?: string;
+  timeout?: number;
+}
+
 export interface ExperimentConfig {
   prompts: {
     a: PromptConfig;
     b: PromptConfig;
   };
   judge_model: string;
+  context_source?: ContextSourceConfig;
 }
 
 export interface Experiment {

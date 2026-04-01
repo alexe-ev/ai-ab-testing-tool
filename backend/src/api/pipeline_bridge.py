@@ -151,6 +151,10 @@ def build_config_from_db(experiment, test_set, rubric, judge_model: str) -> tupl
         "output": {"dir": OUTPUT_DIR},
     }
 
+    context_source = exp_config.get("context_source")
+    if context_source:
+        config["context_source"] = context_source
+
     config_path = str(output_dir / f"_tmp_config_{tmp_id}.yaml")
     with open(config_path, "w") as f:
         yaml.dump(config, f, allow_unicode=True)
