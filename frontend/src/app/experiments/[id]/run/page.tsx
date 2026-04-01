@@ -12,6 +12,7 @@ import {
   getExportUrl,
   getIterationChain,
   cloneExperiment,
+  getExperiment,
 } from "@/lib/api";
 import type {
   TestSetListItem,
@@ -19,6 +20,7 @@ import type {
   DryRunResult,
   RunListItem,
   IterationChainItem,
+  Experiment,
 } from "@/lib/types";
 import ModelSelector from "@/components/experiments/model-selector";
 import RunProgress from "@/components/experiments/run-progress";
@@ -34,6 +36,7 @@ export default function RunExperimentPage({
   const { id } = use(params);
   const router = useRouter();
 
+  const [experiment, setExperiment] = useState<Experiment | null>(null);
   const [testSets, setTestSets] = useState<TestSetListItem[]>([]);
   const [rubrics, setRubrics] = useState<RubricListItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -62,18 +65,31 @@ export default function RunExperimentPage({
   }, [id]);
 
   useEffect(() => {
-    Promise.all([getTestSets(), getRubrics()])
-      .then(([ts, rubs]) => {
+    Promise.all([getTestSets(), getRubrics(), getExperiment(id)])
+      .then(([ts, rubs, exp]) => {
         setTestSets(ts);
         setRubrics(rubs);
-        if (ts.length > 0) setTestSetId(ts[0].id);
-        if (rubs.length > 0) setRubricId(rubs[0].id);
+        setExperiment(exp);
+
+        const savedTestSetId = exp.config?.test_set_id;
+        if (savedTestSetId && ts.some((t) => t.id === savedTestSetId)) {
+          setTestSetId(savedTestSetId);
+        } else if (ts.length > 0) {
+          setTestSetId(ts[0].id);
+        }
+
+        const savedRubricId = exp.config?.rubric_id;
+        if (savedRubricId && rubs.some((r) => r.id === savedRubricId)) {
+          setRubricId(savedRubricId);
+        } else if (rubs.length > 0) {
+          setRubricId(rubs[0].id);
+        }
       })
       .catch((e: unknown) =>
         setLoadError(e instanceof Error ? e.message : String(e))
       )
       .finally(() => setLoadingData(false));
-  }, []);
+  }, [id]);
 
   async function handleDryRun() {
     if (!testSetId || !rubricId) return;

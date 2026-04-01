@@ -89,6 +89,10 @@ export function getExperiments(): Promise<ExperimentListItem[]> {
   return apiGet<ExperimentListItem[]>("/api/experiments-db/");
 }
 
+export function getExperiment(id: string): Promise<Experiment> {
+  return apiGet<Experiment>(`/api/experiments-db/${id}`);
+}
+
 export function dryRunExperiment(
   experimentId: string,
   testSetId: string,
