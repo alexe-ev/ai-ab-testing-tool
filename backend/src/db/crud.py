@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import func
+from sqlalchemy import func, text, asc, desc
 from sqlalchemy.orm import Session
 from src.db.models import Experiment, TestSet, TestCase, Rubric, RubricDimension, Run, Setting
 
@@ -210,6 +210,106 @@ def get_run(db: Session, run_id: str) -> Run | None:
 
 def list_experiment_runs(db: Session, experiment_id: str) -> list[Run]:
     return db.query(Run).filter(Run.experiment_id == experiment_id).order_by(Run.created_at.desc()).all()
+
+
+def list_runs(
+    db: Session,
+    experiment_id: str | None = None,
+    status: str | None = None,
+    model: str | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[tuple], int]:
+    """Return (list of (Run, experiment_name), total_count)."""
+    query = (
+        db.query(Run, Experiment.name.label("experiment_name"))
+        .outerjoin(Experiment, Run.experiment_id == Experiment.id)
+    )
+
+    if experiment_id is not None:
+        query = query.filter(Run.experiment_id == experiment_id)
+    if status is not None:
+        query = query.filter(Run.status == status)
+    if model is not None:
+        # Filter by model name appearing in prompt_models JSON values
+        query = query.filter(Run.prompt_models.contains(model))
+
+    total = query.count()
+
+    VALID_SORT_BY = {"score_delta", "created_at"}
+    effective_sort_by = sort_by if sort_by in VALID_SORT_BY else "created_at"
+
+    if effective_sort_by == "score_delta":
+        # JSON path extraction for SQLite
+        order_expr = text("json_extract(runs.summary_metrics, '$.score_delta')")
+        if sort_order == "asc":
+            query = query.order_by(asc(order_expr))
+        else:
+            query = query.order_by(desc(order_expr))
+    else:
+        col = Run.created_at
+        if sort_order == "asc":
+            query = query.order_by(col.asc())
+        else:
+            query = query.order_by(col.desc())
+
+    rows = query.offset(offset).limit(limit).all()
+    return rows, total
+
+
+def update_run_summary_metrics(db: Session, run_id: str, metrics: dict) -> Run | None:
+    run = db.query(Run).filter(Run.id == run_id).first()
+    if run is None:
+        return None
+    run.summary_metrics = metrics
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def list_experiments_with_last_run(db: Session) -> list[tuple]:
+    """Return list of (Experiment, run_count, last_run_at, last_run_metrics).
+
+    Uses a single query: subquery finds the max completed_at per experiment for
+    complete runs, then joins back to Run to get that row's summary_metrics.
+    """
+    # Subquery: max completed_at per experiment_id among complete runs
+    latest_sq = (
+        db.query(
+            Run.experiment_id.label("experiment_id"),
+            func.max(Run.completed_at).label("max_completed_at"),
+        )
+        .filter(Run.status == "complete")
+        .group_by(Run.experiment_id)
+        .subquery()
+    )
+
+    # Alias for the last complete Run row (joined on experiment_id + completed_at)
+    LastRun = db.query(Run).join(
+        latest_sq,
+        (Run.experiment_id == latest_sq.c.experiment_id)
+        & (Run.completed_at == latest_sq.c.max_completed_at),
+    ).subquery()
+
+    rows = (
+        db.query(
+            Experiment,
+            func.count(Run.id).label("run_count"),
+            LastRun.c.completed_at.label("last_run_at"),
+            LastRun.c.summary_metrics.label("last_run_metrics"),
+        )
+        .outerjoin(Run, Run.experiment_id == Experiment.id)
+        .outerjoin(LastRun, LastRun.c.experiment_id == Experiment.id)
+        .group_by(Experiment.id, LastRun.c.completed_at, LastRun.c.summary_metrics)
+        .all()
+    )
+
+    return [
+        (exp, run_count, last_run_at, last_run_metrics)
+        for exp, run_count, last_run_at, last_run_metrics in rows
+    ]
 
 
 def update_run_status(
