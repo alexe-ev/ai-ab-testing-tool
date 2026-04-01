@@ -42,6 +42,7 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
+  const [contextOpen, setContextOpen] = useState(!!initial?.config?.context_source);
   const [testSets, setTestSets] = useState<TestSetListItem[]>([]);
   const [rubrics, setRubrics] = useState<RubricListItem[]>([]);
 
@@ -276,16 +277,31 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
         )}
       </section>
 
-      {/* Context source */}
+      {/* Context source (collapsible) */}
       <section className="mb-8">
-        <ContextSourceEditor
-          value={form.config.context_source}
-          onChange={updateContextSource}
-          contextTemplate={form.config.context_template}
-          onContextTemplateChange={updateContextTemplate}
-          contextPosition={form.config.context_position}
-          onContextPositionChange={updateContextPosition}
-        />
+        <button
+          type="button"
+          onClick={() => setContextOpen(!contextOpen)}
+          className="flex items-center gap-2 text-xs font-semibold text-[#888] uppercase tracking-wider hover:text-white transition-colors mb-3"
+        >
+          <span className={`transition-transform ${contextOpen ? "rotate-90" : ""}`}>&#9654;</span>
+          Advanced: Context Source
+          {form.config.context_source && (
+            <span className="text-[10px] font-normal normal-case tracking-normal px-1.5 py-0.5 rounded bg-[#222] text-[#aaa]">
+              {form.config.context_source.type}
+            </span>
+          )}
+        </button>
+        {contextOpen && (
+          <ContextSourceEditor
+            value={form.config.context_source}
+            onChange={updateContextSource}
+            contextTemplate={form.config.context_template}
+            onContextTemplateChange={updateContextTemplate}
+            contextPosition={form.config.context_position}
+            onContextPositionChange={updateContextPosition}
+          />
+        )}
       </section>
 
       {/* Actions */}
@@ -299,7 +315,7 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
           disabled={saving}
           className="px-4 py-2 bg-white text-black text-sm rounded hover:bg-[#e0e0e0] disabled:opacity-50 transition-colors"
         >
-          {saving ? "Saving..." : "Save Draft"}
+          {saving ? "Saving..." : "Save"}
         </button>
         <button
           type="button"
