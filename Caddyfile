@@ -1,0 +1,13 @@
+{$DOMAIN:localhost} {
+    header X-Frame-Options DENY
+    header X-Content-Type-Options nosniff
+    header Referrer-Policy strict-origin-when-cross-origin
+
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    handle {
+        reverse_proxy frontend:3000
+    }
+}
