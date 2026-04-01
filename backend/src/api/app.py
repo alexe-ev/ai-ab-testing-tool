@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import router
 from src.api.crud_routes import (
     test_sets_router, rubrics_router, experiments_db_router,
-    runs_router, settings_router, ALLOWED_SETTINGS,
+    runs_router, settings_router, context_source_router, ALLOWED_SETTINGS,
 )
 from src.api.pipeline_bridge import backfill_summary_metrics
 from src.db.engine import create_tables, SessionLocal
@@ -51,3 +51,4 @@ app.include_router(rubrics_router)
 app.include_router(experiments_db_router)
 app.include_router(runs_router)
 app.include_router(settings_router)
+app.include_router(context_source_router)

@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 from src.llm import detect_provider, create_client, call_llm
+from src.context_source import ContextFetcher, ContextSourceError
 
 
 def load_config(config_path: str) -> dict:
@@ -105,12 +106,30 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
         if pm["provider"] not in clients:
             clients[pm["provider"]] = create_client(pm["provider"])
 
+    # Set up dynamic context fetcher if configured
+    fetcher = None
+    context_source_cfg = config.get("context_source")
+    if context_source_cfg:
+        fetcher = ContextFetcher(context_source_cfg)
+
     results = []
     total_calls = len(test_cases) * len(prompt_names)
     call_num = 0
 
     for i, case in enumerate(test_cases):
         context = case.get("context")
+        context_origin = None
+        fetch_error = None
+
+        if context is not None:
+            context_origin = "static"
+        elif fetcher is not None:
+            try:
+                context = fetcher.fetch(case["input"])
+                context_origin = "dynamic"
+            except ContextSourceError as e:
+                fetch_error = str(e)
+                context = None
 
         # Compose user input: prepend context if present
         if context:
@@ -126,9 +145,13 @@ def run_experiment(config_path: str, output_dir: str = "results", dry_run: bool 
             "category": case.get("category", "unknown"),
             "input": case["input"],
             "context": context,
+            "context_source": context_origin,
             "reference": case.get("reference"),
             "responses": {},
         }
+
+        if fetch_error:
+            case_results["context_fetch_error"] = fetch_error
 
         for prompt_key in prompt_names:
             call_num += 1

@@ -16,6 +16,7 @@ from src.db.models import Experiment as ExperimentModel, Run as RunModel
 from src.api.jobs import create_job
 from src.api.pipeline_bridge import build_config_from_db, run_full_pipeline
 from src.api.routes import OUTPUT_DIR, _validate_id
+from src.context_source import ContextFetcher, ContextSourceError
 
 
 # ─── Request / Response schemas ───────────────────────────────────
@@ -716,6 +717,28 @@ def export_run(run_id: str, format: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Report file not found for format: {format}")
 
     return FileResponse(str(files[0]), media_type=media_type, filename=files[0].name)
+
+
+# ─── Context source router ───────────────────────────────────────
+
+context_source_router = APIRouter(prefix="/api/context-source", tags=["context-source"])
+
+
+class ContextSourceTestRequest(BaseModel):
+    config: dict
+    input_text: str
+
+
+@context_source_router.post("/test")
+def test_context_source(body: ContextSourceTestRequest):
+    try:
+        fetcher = ContextFetcher(body.config)
+        result = fetcher.fetch(body.input_text)
+        return {"success": True, "context": result}
+    except ContextSourceError as e:
+        return {"success": False, "error": str(e)}
+    except Exception:
+        return {"success": False, "error": "Unexpected error while fetching context"}
 
 
 # ─── Settings router ─────────────────────────────────────────────

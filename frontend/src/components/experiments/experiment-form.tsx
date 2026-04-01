@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import PromptEditor from "./prompt-editor";
 import DiffViewer from "./diff-viewer";
 import ModelSelector from "./model-selector";
-import type { ExperimentFormData, PromptConfig } from "@/lib/types";
+import ContextSourceEditor from "./context-source-editor";
+import type { ExperimentFormData, PromptConfig, ContextSourceConfig } from "@/lib/types";
 
 export const DEFAULT_PROMPT: PromptConfig = {
   name: "",
@@ -58,6 +59,13 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
     setForm((f) => ({
       ...f,
       config: { ...f.config, judge_model: val },
+    }));
+  }
+
+  function updateContextSource(val: ContextSourceConfig | undefined) {
+    setForm((f) => ({
+      ...f,
+      config: { ...f.config, context_source: val },
     }));
   }
 
@@ -169,6 +177,14 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
             onChange={updateJudgeModel}
           />
         </div>
+      </section>
+
+      {/* Context source */}
+      <section className="mb-8">
+        <ContextSourceEditor
+          value={form.config.context_source}
+          onChange={updateContextSource}
+        />
       </section>
 
       {/* Actions */}
