@@ -1,6 +1,7 @@
 "use client";
 
 import type { DimensionAnalysis, PromptDimensionStats } from "@/lib/types";
+import Tooltip from "@/components/ui/tooltip";
 
 interface DimensionTableProps {
   dimensions: Record<string, DimensionAnalysis>;
@@ -35,9 +36,21 @@ export default function DimensionTable({
               <th className="px-4 py-2 text-right font-normal">Weight</th>
               <th className="px-4 py-2 text-right font-normal">{promptA}</th>
               <th className="px-4 py-2 text-right font-normal">{promptB}</th>
-              <th className="px-4 py-2 text-right font-normal">Delta</th>
-              <th className="px-4 py-2 text-right font-normal">p-value</th>
-              <th className="px-4 py-2 text-right font-normal">Effect</th>
+              <th className="px-4 py-2 text-right font-normal">
+                <Tooltip text="Score difference between the two prompts on this dimension.">
+                  Delta
+                </Tooltip>
+              </th>
+              <th className="px-4 py-2 text-right font-normal">
+                <Tooltip text="Probability the difference is due to chance. Below 0.05 = statistically significant.">
+                  p-value
+                </Tooltip>
+              </th>
+              <th className="px-4 py-2 text-right font-normal">
+                <Tooltip text="Magnitude of difference (Cohen's d). Small (<0.2), Medium (0.5), Large (0.8+).">
+                  Effect
+                </Tooltip>
+              </th>
               <th className="px-4 py-2 text-right font-normal">Better</th>
             </tr>
           </thead>

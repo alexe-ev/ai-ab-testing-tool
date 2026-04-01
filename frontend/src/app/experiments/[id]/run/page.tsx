@@ -25,6 +25,7 @@ import type {
 import ModelSelector from "@/components/experiments/model-selector";
 import RunProgress from "@/components/experiments/run-progress";
 import TrendChart from "@/components/experiments/trend-chart";
+import Tooltip from "@/components/ui/tooltip";
 
 const MODES = ["both", "pointwise", "pairwise"] as const;
 
@@ -275,7 +276,9 @@ export default function RunExperimentPage({
         {/* Mode */}
         <div>
           <label className="block text-sm text-[#888] mb-1" htmlFor="mode">
-            Evaluation Mode
+            <Tooltip text="Pointwise: scores each response 1-5 independently. Pairwise: compares A vs B head-to-head. Both: runs both for maximum reliability.">
+              Evaluation Mode
+            </Tooltip>
           </label>
           <select
             id="mode"
