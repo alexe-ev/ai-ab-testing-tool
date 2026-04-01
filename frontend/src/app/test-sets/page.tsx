@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getTestSets, deleteTestSet } from "@/lib/api";
 import type { TestSetListItem } from "@/lib/types";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function TestSetsPage() {
   const [testSets, setTestSets] = useState<TestSetListItem[]>([]);
@@ -48,15 +49,12 @@ export default function TestSetsPage() {
       )}
 
       {!loading && !error && testSets.length === 0 && (
-        <div className="border border-[#222] rounded-lg p-12 text-center">
-          <p className="text-[#888] text-sm mb-4">No test sets yet.</p>
-          <Link
-            href="/test-sets/new"
-            className="text-sm text-white underline underline-offset-2"
-          >
-            Create your first test set
-          </Link>
-        </div>
+        <EmptyState
+          title="No test sets yet"
+          description="Test sets are the inputs your AI will respond to. Each test case is a user message that both prompt variants will answer."
+          actionLabel="New Test Set"
+          actionHref="/test-sets/new"
+        />
       )}
 
       {!loading && !error && testSets.length > 0 && (
