@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getRubrics, deleteRubric } from "@/lib/api";
 import type { RubricListItem } from "@/lib/types";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function RubricsPage() {
   const [rubrics, setRubrics] = useState<RubricListItem[]>([]);
@@ -48,15 +49,12 @@ export default function RubricsPage() {
       )}
 
       {!loading && !error && rubrics.length === 0 && (
-        <div className="border border-[#222] rounded-lg p-12 text-center">
-          <p className="text-[#888] text-sm mb-4">No rubrics yet.</p>
-          <Link
-            href="/rubrics/new"
-            className="text-sm text-white underline underline-offset-2"
-          >
-            Create your first rubric
-          </Link>
-        </div>
+        <EmptyState
+          title="No rubrics yet"
+          description="Rubrics define how responses are scored. Each dimension (e.g. accuracy, tone) gets a weight and a 5-level scoring scale. Start from a template or build your own."
+          actionLabel="New Rubric"
+          actionHref="/rubrics/new"
+        />
       )}
 
       {!loading && !error && rubrics.length > 0 && (

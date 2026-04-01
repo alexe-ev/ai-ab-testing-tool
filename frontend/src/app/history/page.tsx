@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getRunHistory, getExperiments } from "@/lib/api";
 import type { RunHistoryItem, ExperimentListItem } from "@/lib/types";
 import Link from "next/link";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const STATUS_OPTIONS = ["", "complete", "failed", "running", "pending"];
 const SORT_COLUMNS = [
@@ -150,18 +151,19 @@ export default function HistoryPage() {
         )}
       </div>
 
-      {error && (
-        <p className="text-red-400 text-sm mb-4">Failed to load: {error}</p>
-      )}
-
       {loading && (
         <p className="text-[#888] text-sm">Loading...</p>
       )}
 
+      {error && (
+        <p className="text-red-400 text-sm mb-4">Failed to load: {error}</p>
+      )}
+
       {!loading && !error && items.length === 0 && (
-        <div className="border border-[#222] rounded-lg p-12 text-center">
-          <p className="text-[#888] text-sm">No runs yet</p>
-        </div>
+        <EmptyState
+          title="No runs yet"
+          description="Run history appears here after you run your first experiment. Each run captures scores, comparisons, and response details."
+        />
       )}
 
       {!loading && !error && items.length > 0 && (
