@@ -9,31 +9,7 @@ import yaml
 import pytest
 
 from src.runner import run_experiment
-
-
-def _write_config(tmp_path, config_dict):
-    p = os.path.join(tmp_path, "config.yaml")
-    with open(p, "w") as f:
-        yaml.dump(config_dict, f)
-    return p
-
-
-def _write_test_set(tmp_path, cases):
-    p = os.path.join(tmp_path, "test_set.yaml")
-    with open(p, "w") as f:
-        yaml.dump({"test_cases": cases}, f)
-    return p
-
-
-def _make_mock_response(text="mock response"):
-    return {
-        "response": text,
-        "input_tokens": 5,
-        "output_tokens": 10,
-        "latency_seconds": 0.1,
-        "model": "gpt-4o-mini",
-        "stop_reason": "end_turn",
-    }
+from tests.conftest import write_config as _write_config, write_test_set as _write_test_set, make_mock_response as _make_mock_response
 
 
 # ─── Per-prompt model tests ───────────────────────────────────────

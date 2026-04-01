@@ -9,36 +9,9 @@ import yaml
 import pytest
 from fastapi.testclient import TestClient
 
-from src.runner import run_experiment
+from src.runner import run_experiment, DEFAULT_CONTEXT_TEMPLATE
 from src.context_source import ContextFetcher, ContextSourceError
-
-
-# ─── Helpers shared with test_runner.py ──────────────────────────
-
-
-def _write_config(tmp_path, config_dict):
-    p = os.path.join(tmp_path, "config.yaml")
-    with open(p, "w") as f:
-        yaml.dump(config_dict, f)
-    return p
-
-
-def _write_test_set(tmp_path, cases):
-    p = os.path.join(tmp_path, "test_set.yaml")
-    with open(p, "w") as f:
-        yaml.dump({"test_cases": cases}, f)
-    return p
-
-
-def _make_mock_response(text="mock response"):
-    return {
-        "response": text,
-        "input_tokens": 5,
-        "output_tokens": 10,
-        "latency_seconds": 0.1,
-        "model": "gpt-4o-mini",
-        "stop_reason": "end_turn",
-    }
+from tests.conftest import write_config as _write_config, write_test_set as _write_test_set, make_mock_response as _make_mock_response
 
 
 def _base_config():
@@ -181,8 +154,6 @@ def test_runner_no_context_source_in_config(tmp_path):
 
 def test_pipeline_bridge_includes_context_source():
     """build_config_from_db includes context_source from experiment.config."""
-    import tempfile
-    from unittest.mock import MagicMock
     from src.api.pipeline_bridge import build_config_from_db
 
     context_source_cfg = {"type": "script", "command": "echo {input}"}
@@ -218,8 +189,6 @@ def test_pipeline_bridge_includes_context_source():
 
 def test_pipeline_bridge_no_context_source():
     """build_config_from_db omits context_source when not present."""
-    import tempfile
-    from unittest.mock import MagicMock
     from src.api.pipeline_bridge import build_config_from_db
 
     experiment = MagicMock()
@@ -284,3 +253,140 @@ def test_context_source_test_endpoint_error(client):
     data = resp.json()
     assert data["success"] is False
     assert "Script crashed" in data["error"]
+
+
+# ─── Context template and position tests ─────────────────────────
+
+
+def test_runner_custom_context_template(tmp_path):
+    """Custom context_template is applied when context is present."""
+    cases = [
+        {
+            "id": "t1",
+            "category": "general",
+            "input": "What is Y?",
+            "context": "Some static context.",
+        }
+    ]
+    ts_path = _write_test_set(tmp_path, cases)
+    config = _base_config()
+    config["test_set"] = ts_path
+    config["context_template"] = "<ctx>{context}</ctx>\n<q>{input}</q>"
+    cfg_path = _write_config(tmp_path, config)
+
+    captured_inputs = []
+
+    def capture_call(**kwargs):
+        captured_inputs.append(kwargs["user_input"])
+        return _make_mock_response()
+
+    with patch("src.runner.create_client", return_value=MagicMock()), \
+         patch("src.runner.call_llm", side_effect=capture_call):
+        run_experiment(cfg_path, output_dir=str(tmp_path))
+
+    expected = "<ctx>Some static context.</ctx>\n<q>What is Y?</q>"
+    for user_input in captured_inputs:
+        assert user_input == expected
+
+
+def test_runner_context_position_system(tmp_path):
+    """When context_position is 'system', context is appended to system prompt and user_input is raw."""
+    cases = [
+        {
+            "id": "t2",
+            "category": "general",
+            "input": "Tell me about Z.",
+            "context": "Relevant context here.",
+        }
+    ]
+    ts_path = _write_test_set(tmp_path, cases)
+    config = _base_config()
+    config["test_set"] = ts_path
+    config["context_position"] = "system"
+    cfg_path = _write_config(tmp_path, config)
+
+    captured_calls = []
+
+    def capture_call(**kwargs):
+        captured_calls.append({"system": kwargs["system_prompt"], "user": kwargs["user_input"]})
+        return _make_mock_response()
+
+    with patch("src.runner.create_client", return_value=MagicMock()), \
+         patch("src.runner.call_llm", side_effect=capture_call):
+        run_experiment(cfg_path, output_dir=str(tmp_path))
+
+    for call in captured_calls:
+        # user_input must be the raw case input
+        assert call["user"] == "Tell me about Z."
+        # system prompt must contain the context
+        assert "Relevant context here." in call["system"]
+        # system prompt must have the original prompt system prefix
+        assert "You are" in call["system"]
+
+
+def test_runner_default_template_backward_compatible(tmp_path):
+    """Without context_template or context_position in config, behavior matches old hardcoded format."""
+    cases = [
+        {
+            "id": "t3",
+            "category": "general",
+            "input": "Old format question.",
+            "context": "Old format context.",
+        }
+    ]
+    ts_path = _write_test_set(tmp_path, cases)
+    config = _base_config()
+    config["test_set"] = ts_path
+    # No context_template or context_position keys
+    cfg_path = _write_config(tmp_path, config)
+
+    captured_inputs = []
+
+    def capture_call(**kwargs):
+        captured_inputs.append(kwargs["user_input"])
+        return _make_mock_response()
+
+    with patch("src.runner.create_client", return_value=MagicMock()), \
+         patch("src.runner.call_llm", side_effect=capture_call):
+        run_experiment(cfg_path, output_dir=str(tmp_path))
+
+    expected = (
+        "[Retrieved context]\nOld format context.\n\n"
+        "[User question]\nOld format question."
+    )
+    for user_input in captured_inputs:
+        assert user_input == expected
+
+
+def test_pipeline_bridge_propagates_context_template(tmp_path):
+    """build_config_from_db includes context_template and context_position when present."""
+    from src.api.pipeline_bridge import build_config_from_db
+
+    experiment = MagicMock()
+    experiment.name = "Template Test"
+    experiment.config = {
+        "model": {"name": "gpt-4o-mini", "temperature": 0.3, "max_tokens": 512},
+        "prompts": {
+            "a": {"name": "A", "system": "Sys A"},
+            "b": {"name": "B", "system": "Sys B"},
+        },
+        "context_template": "<ctx>{context}</ctx>\n<q>{input}</q>",
+        "context_position": "system",
+    }
+
+    test_set = MagicMock()
+    test_set.cases = []
+
+    rubric = MagicMock()
+    rubric.dimensions = []
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with patch("src.api.pipeline_bridge.OUTPUT_DIR", tmp_dir):
+            config_path, ts_path, rubric_path = build_config_from_db(
+                experiment, test_set, rubric, "claude-sonnet"
+            )
+            with open(config_path) as f:
+                config_data = yaml.safe_load(f)
+
+    assert config_data.get("context_template") == "<ctx>{context}</ctx>\n<q>{input}</q>"
+    assert config_data.get("context_position") == "system"

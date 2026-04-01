@@ -69,6 +69,20 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
     }));
   }
 
+  function updateContextTemplate(val: string | undefined) {
+    setForm((f) => ({
+      ...f,
+      config: { ...f.config, context_template: val },
+    }));
+  }
+
+  function updateContextPosition(val: "user" | "system") {
+    setForm((f) => ({
+      ...f,
+      config: { ...f.config, context_position: val },
+    }));
+  }
+
   async function handleSave() {
     if (!form.name.trim()) {
       setError("Experiment name is required.");
@@ -184,6 +198,10 @@ export default function ExperimentForm({ initial, onSave }: ExperimentFormProps)
         <ContextSourceEditor
           value={form.config.context_source}
           onChange={updateContextSource}
+          contextTemplate={form.config.context_template}
+          onContextTemplateChange={updateContextTemplate}
+          contextPosition={form.config.context_position}
+          onContextPositionChange={updateContextPosition}
         />
       </section>
 

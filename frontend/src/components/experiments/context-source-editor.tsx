@@ -6,6 +6,10 @@ import type { ContextSourceConfig } from "@/lib/types";
 interface ContextSourceEditorProps {
   value: ContextSourceConfig | undefined;
   onChange: (val: ContextSourceConfig | undefined) => void;
+  contextTemplate?: string;
+  onContextTemplateChange: (val: string | undefined) => void;
+  contextPosition?: "user" | "system";
+  onContextPositionChange: (val: "user" | "system") => void;
 }
 
 type ModeType = "none" | "script" | "http";
@@ -15,7 +19,14 @@ function getMode(value: ContextSourceConfig | undefined): ModeType {
   return value.type;
 }
 
-export default function ContextSourceEditor({ value, onChange }: ContextSourceEditorProps) {
+export default function ContextSourceEditor({
+  value,
+  onChange,
+  contextTemplate,
+  onContextTemplateChange,
+  contextPosition,
+  onContextPositionChange,
+}: ContextSourceEditorProps) {
   const mode = getMode(value);
 
   const [testResult, setTestResult] = useState<{ success: boolean; context?: string; error?: string } | null>(null);
@@ -323,6 +334,53 @@ export default function ContextSourceEditor({ value, onChange }: ContextSourceEd
           )}
         </div>
       )}
+
+      {/* Context Injection Format */}
+      <div className="border-t border-[#222] pt-4 flex flex-col gap-3">
+        <div>
+          <p className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-1">
+            Context Injection Format
+          </p>
+          <p className="text-xs text-[#555]">
+            How context is formatted and injected into the LLM call
+          </p>
+        </div>
+
+        <div>
+          <label className={labelClass}>Template</label>
+          <textarea
+            value={contextTemplate ?? ""}
+            onChange={(e) => onContextTemplateChange(e.target.value || undefined)}
+            rows={3}
+            className={`${inputClass} font-mono resize-none`}
+            placeholder={`[Retrieved context]\n{context}\n\n[User question]\n{input}`}
+          />
+          <p className={helperClass}>
+            {contextTemplate ? "Use {context} and {input} as placeholders" : "Using default template. Override to customize."}
+          </p>
+        </div>
+
+        <div>
+          <label className={labelClass}>Inject into</label>
+          <div className="flex gap-2">
+            {(["user", "system"] as const).map((pos) => (
+              <button
+                key={pos}
+                type="button"
+                onClick={() => onContextPositionChange(pos)}
+                className={`${modeButtonBase} ${(contextPosition ?? "user") === pos ? modeButtonActive : modeButtonInactive}`}
+              >
+                <span className="font-medium">
+                  {pos === "user" ? "User message" : "System prompt"}
+                </span>
+                <span className="block text-xs text-[#555] mt-0.5">
+                  {pos === "user" ? "Default" : "Appended to system"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
