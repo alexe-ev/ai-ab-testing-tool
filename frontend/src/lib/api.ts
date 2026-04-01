@@ -1,9 +1,10 @@
 import type {
   TestSet, TestSetListItem, TestSetFormData,
   Rubric, RubricListItem, RubricFormData,
-  ExperimentListItem,
+  Experiment, ExperimentListItem, IterationChainItem,
   DryRunResult, JobStatus,
   RunListItem, RunResultsData, RunHistoryResponse,
+  CompareData,
   SettingItem,
 } from "./types";
 
@@ -154,6 +155,18 @@ export function getRunHistory(params?: {
   }
   const query = qs.toString() ? `?${qs.toString()}` : "";
   return apiGet<RunHistoryResponse>(`/api/runs/${query}`);
+}
+
+export function cloneExperiment(id: string, name?: string): Promise<Experiment> {
+  return apiPost<Experiment>(`/api/experiments-db/${id}/clone`, { name: name ?? null });
+}
+
+export function getIterationChain(id: string): Promise<IterationChainItem[]> {
+  return apiGet<IterationChainItem[]>(`/api/experiments-db/${id}/chain`);
+}
+
+export function compareRuns(runA: string, runB: string): Promise<CompareData> {
+  return apiGet<CompareData>(`/api/runs/compare?run_a=${encodeURIComponent(runA)}&run_b=${encodeURIComponent(runB)}`);
 }
 
 export function getSettings(): Promise<SettingItem[]> {

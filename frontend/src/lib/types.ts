@@ -20,6 +20,7 @@ export interface Experiment {
   description: string;
   hypothesis: string;
   config: ExperimentConfig | null;
+  parent_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -39,8 +40,30 @@ export interface ExperimentListItem {
   description: string;
   hypothesis: string;
   run_count: number;
+  parent_id: string | null;
   last_run_at: string | null;
   last_run_metrics: SummaryMetrics | null;
+}
+
+export interface IterationChainItem {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  created_at: string;
+  run_count: number;
+  last_run_metrics: SummaryMetrics | null;
+}
+
+export interface CompareRunData {
+  run_id: string;
+  run_data: Record<string, unknown> | null;
+  eval_data: Record<string, unknown> | null;
+  analysis: { analysis: AnalysisData } | null;
+}
+
+export interface CompareData {
+  run_a: CompareRunData;
+  run_b: CompareRunData;
 }
 
 export interface RunHistoryItem {

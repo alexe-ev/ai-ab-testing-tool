@@ -1,18 +1,21 @@
+import copy
 import os
 import threading
 from datetime import datetime
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 import json
 from pathlib import Path
 
 from src.db.engine import get_db
 from src.db import crud
+from src.db.models import Experiment as ExperimentModel, Run as RunModel
 from src.api.jobs import create_job
 from src.api.pipeline_bridge import build_config_from_db, run_full_pipeline
-from src.api.routes import _validate_id
+from src.api.routes import OUTPUT_DIR, _validate_id
 
 
 # ─── Request / Response schemas ───────────────────────────────────
@@ -105,6 +108,7 @@ class ExperimentCreate(BaseModel):
     description: str = ""
     hypothesis: str = ""
     config: Optional[dict] = None
+    parent_id: Optional[str] = None
 
 
 class ExperimentOut(BaseModel):
@@ -115,6 +119,7 @@ class ExperimentOut(BaseModel):
     description: str
     hypothesis: str
     config: Optional[dict] = None
+    parent_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -127,8 +132,34 @@ class ExperimentListItem(BaseModel):
     description: str
     hypothesis: str
     run_count: int
+    parent_id: Optional[str] = None
     last_run_at: Optional[datetime] = None
     last_run_metrics: Optional[dict] = None
+
+
+class IterationChainItem(BaseModel):
+    id: str
+    name: str
+    parent_id: Optional[str] = None
+    created_at: datetime
+    run_count: int
+    last_run_metrics: Optional[dict] = None
+
+
+class CloneRequest(BaseModel):
+    name: Optional[str] = None
+
+
+class CompareRunData(BaseModel):
+    run_id: str
+    run_data: Optional[dict] = None
+    eval_data: Optional[dict] = None
+    analysis: Optional[dict] = None
+
+
+class CompareResponse(BaseModel):
+    run_a: CompareRunData
+    run_b: CompareRunData
 
 
 class RunHistoryItem(BaseModel):
@@ -263,6 +294,7 @@ def create_experiment(body: ExperimentCreate, db: Session = Depends(get_db)):
         description=body.description,
         hypothesis=body.hypothesis,
         config=body.config,
+        parent_id=body.parent_id,
     )
 
 
@@ -276,6 +308,7 @@ def list_experiments(db: Session = Depends(get_db)):
             description=exp.description,
             hypothesis=exp.hypothesis,
             run_count=run_count,
+            parent_id=exp.parent_id,
             last_run_at=last_run_at,
             last_run_metrics=last_run_metrics if last_run_metrics else None,
         )
@@ -300,6 +333,7 @@ def update_experiment(id: str, body: ExperimentCreate, db: Session = Depends(get
         description=body.description,
         hypothesis=body.hypothesis,
         config=body.config,
+        parent_id=body.parent_id,
     )
     if exp is None:
         raise HTTPException(status_code=404, detail="Experiment not found")
@@ -311,6 +345,106 @@ def delete_experiment(id: str, db: Session = Depends(get_db)):
     deleted = crud.delete_experiment(db, id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Experiment not found")
+
+
+@experiments_db_router.post("/{id}/clone", status_code=201, response_model=ExperimentOut)
+def clone_experiment(id: str, body: CloneRequest, db: Session = Depends(get_db)):
+    source = crud.get_experiment(db, id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+
+    if body.name:
+        new_name = body.name
+    else:
+        child_count = db.query(ExperimentModel).filter(ExperimentModel.parent_id == id).count()
+        new_name = f"{source.name} v{child_count + 2}"
+
+    new_exp = crud.create_experiment(
+        db,
+        name=new_name,
+        description=source.description,
+        hypothesis=source.hypothesis,
+        config=copy.deepcopy(source.config) if source.config is not None else None,
+        parent_id=id,
+    )
+    return new_exp
+
+
+@experiments_db_router.get("/{id}/chain", response_model=list[IterationChainItem])
+def get_iteration_chain(id: str, db: Session = Depends(get_db)):
+    exp = crud.get_experiment(db, id)
+    if exp is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+
+    # Walk up to root
+    root = exp
+    while root.parent_id is not None:
+        parent = crud.get_experiment(db, root.parent_id)
+        if parent is None:
+            break
+        root = parent
+
+    # Collect all descendants of root recursively (BFS)
+    all_ids: list[str] = []
+    queue = [root.id]
+    while queue:
+        current_id = queue.pop(0)
+        all_ids.append(current_id)
+        children = db.query(ExperimentModel).filter(ExperimentModel.parent_id == current_id).all()
+        for child in children:
+            queue.append(child.id)
+
+    # Get last run metrics for all experiments in chain
+    latest_sq = (
+        db.query(
+            RunModel.experiment_id.label("experiment_id"),
+            func.max(RunModel.completed_at).label("max_completed_at"),
+        )
+        .filter(RunModel.status == "complete")
+        .filter(RunModel.experiment_id.in_(all_ids))
+        .group_by(RunModel.experiment_id)
+        .subquery()
+    )
+
+    LastRun = db.query(RunModel).join(
+        latest_sq,
+        (RunModel.experiment_id == latest_sq.c.experiment_id)
+        & (RunModel.completed_at == latest_sq.c.max_completed_at),
+    ).subquery()
+
+    rows = (
+        db.query(
+            ExperimentModel,
+            func.count(RunModel.id).label("run_count"),
+            LastRun.c.summary_metrics.label("last_run_metrics"),
+        )
+        .filter(ExperimentModel.id.in_(all_ids))
+        .outerjoin(RunModel, RunModel.experiment_id == ExperimentModel.id)
+        .outerjoin(LastRun, LastRun.c.experiment_id == ExperimentModel.id)
+        .group_by(ExperimentModel.id, LastRun.c.summary_metrics)
+        .all()
+    )
+
+    # Build lookup by id
+    lookup: dict = {}
+    for row_exp, run_count, last_run_metrics in rows:
+        lookup[row_exp.id] = (row_exp, run_count, last_run_metrics)
+
+    result = []
+    for eid in all_ids:
+        if eid not in lookup:
+            continue
+        row_exp, run_count, last_run_metrics = lookup[eid]
+        result.append(IterationChainItem(
+            id=row_exp.id,
+            name=row_exp.name,
+            parent_id=row_exp.parent_id,
+            created_at=row_exp.created_at,
+            run_count=run_count,
+            last_run_metrics=last_run_metrics if last_run_metrics else None,
+        ))
+
+    return result
 
 
 # ─── Run schemas ───────────────────────────────────────────────────
@@ -339,6 +473,34 @@ class RunFullRequest(BaseModel):
 class RunFullResponse(BaseModel):
     job_id: str
     status: str
+
+
+# ─── Shared file-reading helper ───────────────────────────────────
+
+def _read_run_files(run_id: str) -> tuple[dict | None, dict | None, dict | None]:
+    """Glob and read run/eval/analysis JSON files for a run_id from OUTPUT_DIR.
+
+    Returns (run_data, eval_data, analysis) — each is None when the file is absent.
+    """
+    output_dir = Path(OUTPUT_DIR)
+    run_data = eval_data = analysis = None
+
+    run_files = list(output_dir.glob(f"run_{run_id}*.json"))
+    if run_files:
+        with open(run_files[0]) as f:
+            run_data = json.load(f)
+
+    eval_files = list(output_dir.glob(f"eval_{run_id}*.json"))
+    if eval_files:
+        with open(eval_files[0]) as f:
+            eval_data = json.load(f)
+
+    analysis_files = list(output_dir.glob(f"analysis_{run_id}*.json"))
+    if analysis_files:
+        with open(analysis_files[0]) as f:
+            analysis = json.load(f)
+
+    return run_data, eval_data, analysis
 
 
 # ─── Shared validation helper ─────────────────────────────────────
@@ -410,7 +572,7 @@ def run_full_experiment(id: str, body: RunFullRequest, db: Session = Depends(get
             config_path=config_path,
             test_set_path=test_set_path,
             rubric_path=rubric_path,
-            output_dir="results",
+            output_dir=OUTPUT_DIR,
             mode=body.mode,
             judge_model=body.judge_model,
             job_id=job_id,
@@ -499,6 +661,25 @@ def list_all_runs(
     return RunHistoryResponse(items=items, total=total)
 
 
+@runs_router.get("/compare", response_model=CompareResponse)
+def compare_runs(run_a: str, run_b: str, db: Session = Depends(get_db)):
+    def _load_compare_run_data(run_id: str) -> CompareRunData:
+        run = crud.get_run(db, run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+        run_data, eval_data, analysis = _read_run_files(run_id)
+
+        if run_data is None and eval_data is None and analysis is None:
+            raise HTTPException(status_code=404, detail=f"No results found for run: {run_id}")
+
+        return CompareRunData(run_id=run_id, run_data=run_data, eval_data=eval_data, analysis=analysis)
+
+    data_a = _load_compare_run_data(run_a)
+    data_b = _load_compare_run_data(run_b)
+    return CompareResponse(run_a=data_a, run_b=data_b)
+
+
 @runs_router.get("/{run_id}/results", response_model=RunResultsResponse)
 def get_run_results(run_id: str, db: Session = Depends(get_db)):
     _validate_id(run_id, "run_id")
@@ -506,23 +687,7 @@ def get_run_results(run_id: str, db: Session = Depends(get_db)):
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    output_dir = Path("results")
-    run_data = eval_data = analysis = None
-
-    run_files = list(output_dir.glob(f"run_{run_id}*.json"))
-    if run_files:
-        with open(run_files[0]) as f:
-            run_data = json.load(f)
-
-    eval_files = list(output_dir.glob(f"eval_{run_id}*.json"))
-    if eval_files:
-        with open(eval_files[0]) as f:
-            eval_data = json.load(f)
-
-    analysis_files = list(output_dir.glob(f"analysis_{run_id}*.json"))
-    if analysis_files:
-        with open(analysis_files[0]) as f:
-            analysis = json.load(f)
+    run_data, eval_data, analysis = _read_run_files(run_id)
 
     return RunResultsResponse(run_id=run_id, run_data=run_data, eval_data=eval_data, analysis=analysis)
 
@@ -536,7 +701,7 @@ def export_run(run_id: str, format: str, db: Session = Depends(get_db)):
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    output_dir = Path("results")
+    output_dir = Path(OUTPUT_DIR)
     format_map = {
         "html": (f"report_{run_id}*.html", "text/html"),
         "markdown": (f"report_{run_id}*.md", "text/markdown"),
