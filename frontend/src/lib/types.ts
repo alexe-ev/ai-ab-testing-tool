@@ -24,12 +24,42 @@ export interface Experiment {
   updated_at: string;
 }
 
+export interface SummaryMetrics {
+  winner: string;
+  confidence: string;
+  score_a: number;
+  score_b: number;
+  score_delta: number;
+  recommendation: string;
+}
+
 export interface ExperimentListItem {
   id: string;
   name: string;
   description: string;
   hypothesis: string;
   run_count: number;
+  last_run_at: string | null;
+  last_run_metrics: SummaryMetrics | null;
+}
+
+export interface RunHistoryItem {
+  id: string;
+  experiment_id: string | null;
+  experiment_name: string | null;
+  status: string;
+  prompt_names: Record<string, string>;
+  prompt_models: Record<string, string>;
+  total_cases: number;
+  error_count: number;
+  created_at: string;
+  completed_at: string | null;
+  summary_metrics: SummaryMetrics | null;
+}
+
+export interface RunHistoryResponse {
+  items: RunHistoryItem[];
+  total: number;
 }
 
 export interface ExperimentFormData {

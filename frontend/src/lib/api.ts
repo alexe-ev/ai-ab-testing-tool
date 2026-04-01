@@ -3,7 +3,7 @@ import type {
   Rubric, RubricListItem, RubricFormData,
   ExperimentListItem,
   DryRunResult, JobStatus,
-  RunListItem, RunResultsData,
+  RunListItem, RunResultsData, RunHistoryResponse,
   SettingItem,
 } from "./types";
 
@@ -131,6 +131,29 @@ export function getRunResults(runId: string): Promise<RunResultsData> {
 
 export function getExportUrl(runId: string, format: "html" | "markdown" | "json"): string {
   return `${BASE_URL}/api/runs/${runId}/export/${format}`;
+}
+
+export function getRunHistory(params?: {
+  experiment_id?: string;
+  status?: string;
+  model?: string;
+  sort_by?: string;
+  sort_order?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<RunHistoryResponse> {
+  const qs = new URLSearchParams();
+  if (params) {
+    if (params.experiment_id) qs.set("experiment_id", params.experiment_id);
+    if (params.status) qs.set("status", params.status);
+    if (params.model) qs.set("model", params.model);
+    if (params.sort_by) qs.set("sort_by", params.sort_by);
+    if (params.sort_order) qs.set("sort_order", params.sort_order);
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+  }
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  return apiGet<RunHistoryResponse>(`/api/runs/${query}`);
 }
 
 export function getSettings(): Promise<SettingItem[]> {

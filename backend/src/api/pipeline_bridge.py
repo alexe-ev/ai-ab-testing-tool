@@ -19,6 +19,78 @@ from src.html_report import generate_html_report
 from src.api.jobs import update_job, update_job_progress, append_job_log
 
 
+def extract_summary_metrics(analysis_data: dict) -> dict:
+    """
+    Extract summary metrics from an analysis JSON dict.
+
+    analysis_data should be the top-level dict (with 'analysis' key).
+    Returns a SummaryMetrics dict or empty dict on failure.
+    Schema: {winner, confidence, score_a, score_b, score_delta, recommendation}
+    """
+    try:
+        analysis = analysis_data.get("analysis", {})
+        recommendation = analysis.get("recommendation", {})
+        winner = recommendation.get("winner", "")
+        confidence = recommendation.get("confidence", "")
+
+        overall = analysis.get("pointwise", {}).get("overall_weighted", {})
+        prompt_a_key = analysis.get("prompt_a", {}).get("name", "")
+        prompt_b_key = analysis.get("prompt_b", {}).get("name", "")
+
+        score_a = overall.get(prompt_a_key)
+        score_b = overall.get(prompt_b_key)
+
+        if score_a is None or score_b is None:
+            return {}
+
+        score_a = float(score_a)
+        score_b = float(score_b)
+        score_delta = round(abs(score_a - score_b), 4)
+
+        recommendation_text = recommendation.get("summary") or recommendation.get("text") or (f"Use {winner}" if winner else "")
+
+        return {
+            "winner": winner,
+            "confidence": confidence,
+            "score_a": round(score_a, 4),
+            "score_b": round(score_b, 4),
+            "score_delta": score_delta,
+            "recommendation": recommendation_text,
+        }
+    except Exception:
+        return {}
+
+
+def backfill_summary_metrics(db) -> None:
+    """
+    Backfill summary_metrics for complete runs that don't have them yet.
+    Reads analysis JSON files from the results directory.
+    """
+    from src.db.models import Run
+
+    output_dir = Path("results")
+    runs = db.query(Run).filter(
+        Run.status == "complete",
+    ).all()
+
+    for run in runs:
+        if run.summary_metrics:
+            continue
+        analysis_files = list(output_dir.glob(f"analysis_{run.id}*.json"))
+        if not analysis_files:
+            continue
+        try:
+            with open(analysis_files[0]) as f:
+                analysis_data = json.load(f)
+            metrics = extract_summary_metrics(analysis_data)
+            if metrics:
+                run.summary_metrics = metrics
+        except Exception:
+            continue
+
+    db.commit()
+
+
 def build_config_from_db(experiment, test_set, rubric, judge_model: str) -> tuple[str, str, str]:
     """
     Convert DB entities into temp YAML files and a config dict.
@@ -159,6 +231,20 @@ def run_full_pipeline(
         append_job_log(job_id, {"step": "analyzing", "detail": "Computing statistics", "type": "info"})
         update_job_progress(job_id, {"step": "analyzing", "detail": "Computing statistics"})
         analysis_path = analyze_evaluation(eval_path, output_dir, run_path=run_results_path)
+
+        # Store summary_metrics in Run record
+        try:
+            from src.db.models import Run as RunModel
+            with open(analysis_path) as f:
+                analysis_data = json.load(f)
+            metrics = extract_summary_metrics(analysis_data)
+            if metrics and run_id:
+                run_record = db.query(RunModel).filter_by(id=run_id).first()
+                if run_record:
+                    run_record.summary_metrics = metrics
+                    db.commit()
+        except Exception:
+            pass
 
         # Step 4: report
         append_job_log(job_id, {"step": "reporting", "detail": "Generating reports", "type": "info"})

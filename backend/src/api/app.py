@@ -7,6 +7,7 @@ from src.api.crud_routes import (
     test_sets_router, rubrics_router, experiments_db_router,
     runs_router, settings_router, ALLOWED_SETTINGS,
 )
+from src.api.pipeline_bridge import backfill_summary_metrics
 from src.db.engine import create_tables, SessionLocal
 from src.db import crud
 
@@ -26,6 +27,11 @@ def _load_settings_to_env():
 async def lifespan(app: FastAPI):
     create_tables()
     _load_settings_to_env()
+    db = SessionLocal()
+    try:
+        backfill_summary_metrics(db)
+    finally:
+        db.close()
     yield
 
 

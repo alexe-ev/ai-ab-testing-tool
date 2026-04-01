@@ -80,4 +80,5 @@ class Run(Base):
     result_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = Column(DateTime, nullable=True)
+    summary_metrics = Column(JSON, default=dict)
     experiment = relationship("Experiment", back_populates="runs")

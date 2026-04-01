@@ -30,3 +30,11 @@ def get_db():
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
+    # Auto-migrate: add summary_metrics column if missing (SQLite doesn't support ADD COLUMN IF NOT EXISTS)
+    with engine.connect() as conn:
+        from sqlalchemy import text
+        result = conn.execute(text("PRAGMA table_info(runs)"))
+        columns = [row[1] for row in result]
+        if "summary_metrics" not in columns:
+            conn.execute(text("ALTER TABLE runs ADD COLUMN summary_metrics JSON DEFAULT '{}'"))
+            conn.commit()

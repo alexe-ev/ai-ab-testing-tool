@@ -127,6 +127,27 @@ class ExperimentListItem(BaseModel):
     description: str
     hypothesis: str
     run_count: int
+    last_run_at: Optional[datetime] = None
+    last_run_metrics: Optional[dict] = None
+
+
+class RunHistoryItem(BaseModel):
+    id: str
+    experiment_id: Optional[str] = None
+    experiment_name: Optional[str] = None
+    status: str
+    prompt_names: dict
+    prompt_models: dict
+    total_cases: int
+    error_count: int
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    summary_metrics: Optional[dict] = None
+
+
+class RunHistoryResponse(BaseModel):
+    items: list[RunHistoryItem]
+    total: int
 
 
 # ─── Test Sets router ─────────────────────────────────────────────
@@ -247,7 +268,7 @@ def create_experiment(body: ExperimentCreate, db: Session = Depends(get_db)):
 
 @experiments_db_router.get("/", response_model=list[ExperimentListItem])
 def list_experiments(db: Session = Depends(get_db)):
-    rows = crud.list_experiments(db)
+    rows = crud.list_experiments_with_last_run(db)
     return [
         ExperimentListItem(
             id=exp.id,
@@ -255,8 +276,10 @@ def list_experiments(db: Session = Depends(get_db)):
             description=exp.description,
             hypothesis=exp.hypothesis,
             run_count=run_count,
+            last_run_at=last_run_at,
+            last_run_metrics=last_run_metrics if last_run_metrics else None,
         )
-        for exp, run_count in rows
+        for exp, run_count, last_run_at, last_run_metrics in rows
     ]
 
 
@@ -434,6 +457,46 @@ def list_runs(id: str, db: Session = Depends(get_db)):
 # ─── Runs router ──────────────────────────────────────────────────
 
 runs_router = APIRouter(prefix="/api/runs", tags=["runs"])
+
+
+@runs_router.get("/", response_model=RunHistoryResponse)
+def list_all_runs(
+    experiment_id: Optional[str] = None,
+    status: Optional[str] = None,
+    model: Optional[str] = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    rows, total = crud.list_runs(
+        db,
+        experiment_id=experiment_id,
+        status=status,
+        model=model,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        limit=limit,
+        offset=offset,
+    )
+    items = [
+        RunHistoryItem(
+            id=run.id,
+            experiment_id=run.experiment_id,
+            experiment_name=exp_name,
+            status=run.status,
+            prompt_names=run.prompt_names or {},
+            prompt_models=run.prompt_models or {},
+            total_cases=run.total_cases,
+            error_count=run.error_count,
+            created_at=run.created_at,
+            completed_at=run.completed_at,
+            summary_metrics=run.summary_metrics if run.summary_metrics else None,
+        )
+        for run, exp_name in rows
+    ]
+    return RunHistoryResponse(items=items, total=total)
 
 
 @runs_router.get("/{run_id}/results", response_model=RunResultsResponse)
