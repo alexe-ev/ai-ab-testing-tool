@@ -56,9 +56,9 @@ export default function DimensionTable({
               const sig005 = comp.ttest.significant_005;
               const sig010 = comp.ttest.significant_010;
 
-              let pLabel = pValue.toFixed(3);
-              if (sig005) pLabel += " **";
-              else if (sig010) pLabel += " *";
+              let pLabel = pValue != null ? pValue.toFixed(3) : "—";
+              if (pValue != null && sig005) pLabel += " **";
+              else if (pValue != null && sig010) pLabel += " *";
 
               const pColor = sig005
                 ? "text-green-400"
