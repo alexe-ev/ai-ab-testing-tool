@@ -10,7 +10,7 @@ Instead of "I tried 3 examples and this feels better," you get: "Prompt B scores
 
 Two ways to use it: **Web UI** (recommended) and **CLI** (for automation and CI).
 
-See the [full guide](docs/GUIDE.md) for Web UI walkthrough, RAG context sources, agent integration, and result interpretation.
+See the [full guide](docs/GUIDE.md) for Web UI walkthrough, RAG context sources, agent integration, and result interpretation. [Methodology](docs/methodology.md) explains the statistical approach.
 
 ## How It Works
 
