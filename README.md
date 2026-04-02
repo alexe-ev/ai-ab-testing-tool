@@ -22,7 +22,7 @@ See the [full guide](docs/GUIDE.md) for Web UI walkthrough, RAG context sources,
 ## Web UI
 
 ```bash
-git clone https://github.com/alexe-ev/prompt-ab-testing.git
+git clone https://github.com/alexe-ev/ai-ab-testing-tool.git
 cd prompt-ab-testing
 
 # Backend
@@ -44,7 +44,7 @@ From there: create an experiment with two prompts, pick a test set and rubric, h
 ## CLI Setup
 
 ```bash
-git clone https://github.com/alexe-ev/prompt-ab-testing.git
+git clone https://github.com/alexe-ev/ai-ab-testing-tool.git
 cd prompt-ab-testing
 python -m venv .venv
 source .venv/bin/activate
