@@ -22,10 +22,6 @@ def generate_html_report(
     with open(eval_path) as f:
         eval_data = json.load(f)
 
-    a = analysis_data["analysis"]
-    name_a = a["prompt_a"]["name"]
-    name_b = a["prompt_b"]["name"]
-
     html = _build_html(analysis_data, run_data, eval_data)
 
     output_path = Path(output_dir)
@@ -51,7 +47,6 @@ def _build_html(analysis_data: dict, run_data: dict, eval_data: dict) -> str:
     name_b = a["prompt_b"]["name"]
     exp_name = _esc(run_data["config"]["experiment"].get("name", "Unnamed"))
     total_cases = run_data["summary"]["total_cases"]
-    timestamp = analysis_data.get("timestamp", "")
 
     # Per-prompt model info
     op = a.get("operational_metrics", {})
@@ -149,8 +144,6 @@ def _build_html(analysis_data: dict, run_data: dict, eval_data: dict) -> str:
         ties = pair.get("ties", 0)
         uncertain = pair.get("uncertain", 0)
         consistency = pair.get("swap_test_consistency")
-        wr_a = pair.get(f"win_rate_{name_a}")
-        wr_b = pair.get(f"win_rate_{name_b}")
 
         decided = wins_a + wins_b + ties
         pct_a = (wins_a / decided * 100) if decided > 0 else 0

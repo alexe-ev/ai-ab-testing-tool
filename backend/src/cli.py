@@ -111,7 +111,7 @@ def run(config, output, dry_run, eval_only, judge_model, eval_mode):
 
     # Final summary
     click.echo(f"\n{'━' * 50}")
-    click.echo(f"  ✅ Pipeline complete!")
+    click.echo("  ✅ Pipeline complete!")
     click.echo(f"  📄 Report:  {report_path}")
     click.echo(f"  🌐 HTML:    {html_path}")
     click.echo(f"  📊 Summary: {summary_path}")

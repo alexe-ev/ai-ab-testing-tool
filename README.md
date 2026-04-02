@@ -8,25 +8,43 @@ Run a structured experiment on two system prompts, get statistical evidence, pic
 
 Instead of "I tried 3 examples and this feels better," you get: "Prompt B scores 4.7 on empathy vs A's 4.2, p=0.000, effect size 0.90, winning 55% of head-to-head comparisons."
 
+Two ways to use it: **Web UI** (recommended) and **CLI** (for automation and CI).
+
+See the [full guide](docs/GUIDE.md) for Web UI walkthrough, RAG context sources, agent integration, and result interpretation.
+
 ## How It Works
-
-One command runs the full pipeline:
-
-```
-prompt-ab run --config configs/your_experiment.yaml
-```
 
 1. **Run**: sends every test case to the LLM with both prompts, saves responses
 2. **Evaluate**: LLM-as-judge scores each response (1-5 per dimension) and compares pairs head-to-head
 3. **Analyze**: paired t-test, Cohen's d, bootstrap confidence intervals, category breakdown
 4. **Report**: interactive HTML dashboard + markdown report + JSON summary
 
-Output goes to `results/`. Open the HTML file in any browser.
-
-## Setup
+## Web UI
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/prompt-ab-testing.git
+git clone https://github.com/alexe-ev/prompt-ab-testing.git
+cd prompt-ab-testing
+
+# Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn src.api.app:app --reload --port 8000
+
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:3000. Enter API keys on the Settings page.
+
+From there: create an experiment with two prompts, pick a test set and rubric, hit Run. Results appear as an interactive dashboard with scores, dimension breakdowns, pairwise win rates, and a side-by-side response browser.
+
+## CLI Setup
+
+```bash
+git clone https://github.com/alexe-ev/prompt-ab-testing.git
 cd prompt-ab-testing
 python -m venv .venv
 source .venv/bin/activate
@@ -41,6 +59,14 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 You only need the key for the provider you're using. Provider is auto-detected from model name (`gpt-*` = OpenAI, `claude-*` = Anthropic), or set explicitly with `provider: openai` in config.
+
+Run the full pipeline:
+
+```
+prompt-ab run --config configs/your_experiment.yaml
+```
+
+Output goes to `results/`. Open the HTML file in any browser.
 
 ## Setting Up Your Experiment
 
@@ -242,32 +268,46 @@ Open `report_*.html` in any browser. No server needed. It has:
 
 **Category breakdown**: look for splits. "B wins overall but A is better on technical questions" means you might want to route different query types to different prompts.
 
+## Production Deployment
+
+```bash
+cp .env.example .env
+# Fill in DOMAIN, OPENAI_API_KEY, ANTHROPIC_API_KEY
+
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Caddy handles SSL automatically. See [DEPLOY.md](DEPLOY.md) for details.
+
 ## Project Structure
 
 ```
 prompt-ab-testing/
-  src/
-    cli.py            # CLI entry point
-    llm.py            # Unified Anthropic/OpenAI client
-    runner.py         # Executes prompts via API
-    evaluator.py      # LLM-as-judge scoring
-    analyzer.py       # Statistical analysis
-    reporter.py       # Markdown + JSON reports
-    html_report.py    # Interactive HTML dashboard
-  configs/            # Experiment configs
-  rubrics/            # Evaluation rubrics
-  test_sets/          # Test case sets
+  src/                # CLI pipeline modules
+  backend/
+    src/api/          # FastAPI routes, pipeline bridge
+    src/db/           # SQLAlchemy models, CRUD
+    src/              # Shared pipeline (runner, evaluator, analyzer, reporter)
+    tests/            # Backend tests
+  frontend/
+    src/app/          # Next.js pages
+    src/components/   # React components
+    src/lib/          # Types, API client
+  configs/            # Example experiment configs
+  rubrics/            # Example evaluation rubrics
+  test_sets/          # Example test case sets
   results/            # Generated outputs (gitignored)
 ```
 
-## Dependencies
+## Tech Stack
 
-- `click`: CLI
-- `anthropic`: Claude API
-- `openai`: OpenAI API
-- `pyyaml`: config parsing
-- `scipy`: statistical tests
-- `numpy`: numerical operations
+**CLI**: Python, Click, OpenAI SDK, Anthropic SDK, scipy, numpy
+
+**Backend**: FastAPI, SQLAlchemy, SQLite
+
+**Frontend**: Next.js 16, React 19, Tailwind 4, Recharts
+
+**Deployment**: Docker Compose, Caddy (reverse proxy, auto-SSL)
 
 ## License
 

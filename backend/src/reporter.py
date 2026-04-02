@@ -78,7 +78,7 @@ def generate_markdown_report(
     lines.append("## Recommendation")
     lines.append("")
     if winner == "inconclusive":
-        lines.append(f"**Result: Inconclusive.** The data does not clearly favor either prompt. Consider adding more test cases or refining the rubric.")
+        lines.append("**Result: Inconclusive.** The data does not clearly favor either prompt. Consider adding more test cases or refining the rubric.")
     else:
         emoji = "🟢" if confidence == "high" else "🟡"
         lines.append(f"**{emoji} Recommended: {winner}** (confidence: {confidence})")

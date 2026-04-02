@@ -11,13 +11,12 @@ from src.api.jobs import create_job, update_job, get_job, get_job_log
 from src.api.schemas import (
     RunRequest,
     EvaluateRequest,
-    AnalyzeRequest,
     JobResponse,
     JobStatusResponse,
     DryRunResponse,
     ResultsResponse,
 )
-from src.runner import run_experiment, load_config, load_test_set
+from src.runner import run_experiment, load_test_set
 from src.evaluator import evaluate_run
 from src.analyzer import analyze_evaluation
 from src.reporter import generate_markdown_report, generate_summary_json
@@ -273,7 +272,6 @@ def get_job_status(job_id: str):
 
 @router.get("/jobs/{job_id}/stream")
 def stream_job_log(job_id: str):
-    import asyncio
     import time
     from fastapi.responses import StreamingResponse
 
