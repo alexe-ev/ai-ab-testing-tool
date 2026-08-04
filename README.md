@@ -83,7 +83,7 @@ experiment:
   hypothesis: "What you expect to happen."
 
 model:
-  name: "gpt-4o-mini"        # or claude-sonnet-4-20250514, gpt-4o, etc.
+  name: "gpt-5-mini"         # or claude-sonnet-4-6, gpt-5, etc.
   temperature: 0.3
   max_tokens: 1024
 
@@ -196,7 +196,7 @@ prompt-ab run --config configs/test_5.yaml
 prompt-ab run --config configs/your_experiment.yaml
 ```
 
-50 cases with `gpt-4o-mini` takes about 10 minutes and costs ~$1-2. With `gpt-4o` or Claude Sonnet, expect $3-5.
+50 cases with `gpt-5-mini` takes about 10 minutes and costs ~$1-2. With `gpt-5` or Claude Sonnet, expect $3-5.
 
 ### Dry run (no API calls)
 
@@ -211,7 +211,7 @@ prompt-ab run --config configs/your_experiment.yaml --dry-run
 By default, the judge uses the same model as the tested prompts. Override it:
 
 ```bash
-prompt-ab run --config configs/your_experiment.yaml --judge-model gpt-4o
+prompt-ab run --config configs/your_experiment.yaml --judge-model gpt-5
 ```
 
 ### Re-evaluate without re-running prompts
@@ -308,6 +308,10 @@ prompt-ab-testing/
 **Frontend**: Next.js 16, React 19, Tailwind 4, Recharts
 
 **Deployment**: Docker Compose, Caddy (reverse proxy, auto-SSL)
+
+## Where this sits
+
+Part of [the layer underneath AI products](https://github.com/alexe-ev): model **economics** ([ai-economics](https://github.com/alexe-ev/ai-economics)) → **evals** (this repo) → **routing** ([multi-model-router](https://github.com/alexe-ev/multi-model-router)) → **business impact** ([ml-impact-calculator](https://github.com/alexe-ev/ml-impact-calculator)). Built by the maker of [Whisperly](https://whisperly.io).
 
 ## License
 
