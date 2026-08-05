@@ -272,6 +272,8 @@ Open `report_*.html` in any browser. No server needed. It has:
 
 **Swap consistency**: should be 80%+. If lower, the judge has positional bias (tends to favor whichever response it sees first). Consider using a stronger judge model.
 
+**Multiple dimensions**: each dimension is its own significance test. With 3 dimensions at p < 0.05 there's a ~14% chance at least one shows "significant" by luck alone (~23% with 5). One borderline p-value among several dimensions is weak evidence: trust dimensions where significance comes with a real effect size and the head-to-head agrees. The judge's per-dimension scores also carry unmeasured run-to-run variance, so head-to-head and effect size are the more robust signals. Details in [Methodology](docs/methodology.md).
+
 **Category breakdown**: look for splits. "B wins overall but A is better on technical questions" means you might want to route different query types to different prompts.
 
 ## Production Deployment
