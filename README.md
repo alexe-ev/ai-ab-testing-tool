@@ -19,6 +19,8 @@ See the [full guide](docs/GUIDE.md) for Web UI walkthrough, RAG context sources,
 3. **Analyze**: paired t-test, Cohen's d, bootstrap confidence intervals, category breakdown
 4. **Report**: interactive HTML dashboard + markdown report + JSON summary
 
+![Experiment flow: config, test set and rubric go through run, evaluate, analyze, report](docs/experiment-flow.svg)
+
 ## Web UI
 
 ```bash
@@ -251,6 +253,10 @@ Open `report_*.html` in any browser. No server needed. It has:
 
 - **Overview tab**: score comparison bars, dimension table with p-values and effect sizes, head-to-head win rates, category breakdown, notable cases
 - **Responses tab**: side-by-side response viewer with per-dimension scores, filterable by category, keyboard navigation (arrow keys)
+
+![Overview tab: score comparison bars and dimension statistics with p-values](docs/report-overview.png)
+
+![Responses tab: side-by-side response viewer with per-dimension scores](docs/report-responses.png)
 
 ### What to look for
 

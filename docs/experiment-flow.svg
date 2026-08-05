@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 176" role="img" aria-label="Experiment flow: config, test set and rubric go through run, evaluate, analyze, report">
+  <style>
+    text { font-family: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+    .hdr { font-size: 10px; fill: #8886a0; letter-spacing: 3px; }
+    .stage { font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+    .repo { font-size: 9.5px; fill: #e0dfe6; }
+    .desc { font-size: 9px; fill: #8886a0; }
+    .chip { font-size: 9px; fill: #e0dfe6; }
+    .arrow { font-size: 16px; fill: #8886a0; }
+  </style>
+  <rect width="880" height="176" fill="#0a0a0f"/>
+  <text x="26" y="26" class="hdr">EXPERIMENT FLOW</text>
+  <rect x="818" y="16" width="6" height="6" fill="#4488ff" opacity="0.9"/>
+  <rect x="830" y="16" width="6" height="6" fill="#aa77ff" opacity="0.7"/>
+  <rect x="842" y="16" width="6" height="6" fill="#ffcc00" opacity="0.7"/>
+  <rect x="854" y="16" width="6" height="6" fill="#00ff88" opacity="0.7"/>
+
+  <!-- inputs -->
+  <rect x="26" y="48" width="140" height="24" fill="#12121a" stroke="#2a2a3a"/>
+  <text x="96" y="63" text-anchor="middle" class="chip">config &#183; prompts A + B</text>
+  <rect x="26" y="80" width="140" height="24" fill="#12121a" stroke="#2a2a3a"/>
+  <text x="96" y="95" text-anchor="middle" class="chip">test set &#183; 50 cases</text>
+  <rect x="26" y="112" width="140" height="24" fill="#12121a" stroke="#2a2a3a"/>
+  <text x="96" y="127" text-anchor="middle" class="chip">rubric &#183; dimensions</text>
+  <text x="173" y="97" class="arrow">&#8594;</text>
+
+  <!-- run -->
+  <rect x="196" y="48" width="140" height="88" fill="#12121a" stroke="#2a2a3a"/>
+  <rect x="196" y="48" width="140" height="3" fill="#4488ff"/>
+  <text x="266" y="76" text-anchor="middle" class="stage" fill="#4488ff">RUN</text>
+  <text x="266" y="98" text-anchor="middle" class="repo">A + B &#215; every case</text>
+  <text x="266" y="118" text-anchor="middle" class="desc">run_*.json</text>
+  <text x="343" y="97" class="arrow">&#8594;</text>
+
+  <!-- evaluate -->
+  <rect x="362" y="48" width="140" height="88" fill="#12121a" stroke="#2a2a3a"/>
+  <rect x="362" y="48" width="140" height="3" fill="#aa77ff"/>
+  <text x="432" y="76" text-anchor="middle" class="stage" fill="#aa77ff">EVALUATE</text>
+  <text x="432" y="98" text-anchor="middle" class="repo">LLM judge &#183; pairwise</text>
+  <text x="432" y="118" text-anchor="middle" class="desc">eval_*.json</text>
+  <text x="509" y="97" class="arrow">&#8594;</text>
+
+  <!-- analyze -->
+  <rect x="528" y="48" width="140" height="88" fill="#12121a" stroke="#2a2a3a"/>
+  <rect x="528" y="48" width="140" height="3" fill="#ffcc00"/>
+  <text x="598" y="76" text-anchor="middle" class="stage" fill="#ffcc00">ANALYZE</text>
+  <text x="598" y="98" text-anchor="middle" class="repo">t-test &#183; Cohen's d</text>
+  <text x="598" y="118" text-anchor="middle" class="desc">analysis_*.json</text>
+  <text x="675" y="97" class="arrow">&#8594;</text>
+
+  <!-- report -->
+  <rect x="694" y="48" width="140" height="88" fill="#12121a" stroke="#2a2a3a"/>
+  <rect x="694" y="48" width="140" height="3" fill="#00ff88"/>
+  <text x="764" y="76" text-anchor="middle" class="stage" fill="#00ff88">REPORT</text>
+  <text x="764" y="98" text-anchor="middle" class="repo">verdict + confidence</text>
+  <text x="764" y="118" text-anchor="middle" class="desc">html &#183; md &#183; json</text>
+
+  <text x="26" y="162" class="desc">one command end to end &#183; every stage re-runnable on its own</text>
+</svg>
